@@ -55,4 +55,9 @@ interface AppNodeDao {
 
     @Query("SELECT packageName FROM app_nodes")
     suspend fun getAllPackageNames(): List<String>
+
+    // Restores apps that were marked as fossil candidates but are still installed
+    // (covers the case where the user cancelled the system uninstall dialog).
+    @Query("UPDATE app_nodes SET fossilStatus = NULL, depthLayer = -2, userAffinityScore = 0.1 WHERE packageName IN (:packages) AND fossilStatus IS NOT NULL")
+    suspend fun restoreCancelledFossils(packages: List<String>)
 }

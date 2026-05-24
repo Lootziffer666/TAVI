@@ -252,6 +252,13 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             taviAI.generate(query, ctx).collect { token -> buffer.append(token) }
             val response = actionsRouter.parseAndRoute(buffer.toString())
             if (!_state.value.isSessionOnlyMode) actionsRouter.execute(response)
+
+            // AI-generated shell commands go through the same risk gate as manual ! commands
+            if (response.action == AIActions.EXECUTE_SHELL && !response.target.isNullOrBlank()) {
+                handleShellCommand(response.target)
+                return
+            }
+
             _state.update {
                 it.copy(
                     isThinking = false, isOrbExpanded = false, promptText = "",
@@ -287,7 +294,10 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         emitEvent(TaviEvent.UserConfirmed)
         viewModelScope.launch {
             ShizukuManager.executeCommand(cmd).fold(
-                onSuccess = { emitEvent(TaviEvent.ExecutionSuccess) },
+                onSuccess = { output ->
+                    _state.update { it.copy(aiMessage = output.ifBlank { "Done." }) }
+                    emitEvent(TaviEvent.ExecutionSuccess)
+                },
                 onFailure = {
                     emitEvent(TaviEvent.ExecutionFailed(it.message ?: "Unknown", "Try again or check Shizuku"))
                 }

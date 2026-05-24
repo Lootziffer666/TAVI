@@ -10,7 +10,10 @@ import com.example.tavi.cloud.GeminiRequest
 import com.example.tavi.warden.TaviWarden
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 
 class TaviAIEngine(
     private val context: Context,
@@ -26,14 +29,20 @@ class TaviAIEngine(
         If unclear, use action=narrate with a clarifying question.
     """.trimIndent()
 
-    fun generate(prompt: String, contextSummary: String): Flow<String> = when {
-        localEngine.isReady() ->
-            localEngine.generate(prompt, contextSummary)
-                .catch { emit(localEngine.ruleBasedResponse(prompt)) }
-        geminiApiKey.isNotBlank() && hasNetwork() ->
-            cloudFallback(prompt, contextSummary)
-        else ->
-            flow { emit(localEngine.ruleBasedResponse(prompt)) }
+    // Wraps local → cloud → rule-based fallback chain.
+    // Checks warden.isCloudAiEnabled before attempting any cloud request.
+    fun generate(prompt: String, contextSummary: String): Flow<String> = flow {
+        val cloudEnabled = warden.isCloudAiEnabled.firstOrNull() ?: false
+        val source = when {
+            localEngine.isReady() ->
+                localEngine.generate(prompt, contextSummary)
+                    .catch { emit(localEngine.ruleBasedResponse(prompt)) }
+            cloudEnabled && geminiApiKey.isNotBlank() && hasNetwork() ->
+                cloudFallback(prompt, contextSummary)
+            else ->
+                flowOf(localEngine.ruleBasedResponse(prompt))
+        }
+        emitAll(source)
     }
 
     private fun cloudFallback(prompt: String, contextSummary: String): Flow<String> = flow {
