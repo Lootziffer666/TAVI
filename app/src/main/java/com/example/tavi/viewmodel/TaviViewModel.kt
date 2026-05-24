@@ -35,6 +35,7 @@ data class TaviUiState(
     val aiMessage: String? = null,
     val currentScope: String? = null,
     val bots: List<BotInfo> = BotRegistry.defaults,
+    val fossilCandidates: List<GardenNode> = emptyList(),
     val targetPage: Int? = null,
     val pendingShellCommand: String? = null,
     val showWarden: Boolean = false,
@@ -76,6 +77,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectPreferences()
         collectBots()
         collectBotWorkspacesEnabled()
+        collectWardenPrivateMode()
         initAIEngine()
     }
 
@@ -90,11 +92,15 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             combine(
                 gardenRepo.foregroundNodes(),
                 gardenRepo.midgroundNodes(),
-                gardenRepo.backgroundNodes()
-            ) { fg, mid, bg -> Triple(fg, mid, bg) }
-                .collect { (fg, mid, bg) ->
-                    _state.update { it.copy(foreground = fg, midground = mid, background = bg) }
-                }
+                gardenRepo.backgroundNodes(),
+                gardenRepo.fossilCandidates()
+            ) { fg, mid, bg, fossils ->
+                Pair(Pair(fg, mid), Pair(bg, fossils))
+            }.collect { (layer12, layer34) ->
+                val (fg, mid) = layer12
+                val (bg, fossils) = layer34
+                _state.update { it.copy(foreground = fg, midground = mid, background = bg, fossilCandidates = fossils) }
+            }
         }
     }
 
@@ -113,6 +119,12 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private fun collectBotWorkspacesEnabled() = viewModelScope.launch {
         warden.isBotWorkspacesEnabled.collect { enabled ->
             _state.update { it.copy(botWorkspacesEnabled = enabled) }
+        }
+    }
+
+    private fun collectWardenPrivateMode() = viewModelScope.launch {
+        warden.isPrivateMode.collect { isPrivate ->
+            emitEvent(if (isPrivate) TaviEvent.WardenPrivateModeOn else TaviEvent.WardenPrivateModeOff)
         }
     }
 
@@ -148,7 +160,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             when (val result = intentRouter.route(input)) {
                 is IntentRouterResult.QueryAI -> handleAIQuery(result.query)
                 is IntentRouterResult.NavigateBot -> {
-                    val botIdx = BotRegistry.defaults.indexOfFirst { it.id == result.botName }
+                    val botIdx = _state.value.bots.indexOfFirst { it.id == result.botName }
                     if (botIdx >= 0) _state.update { it.copy(targetPage = 2 + botIdx) }
                     _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "") }
                     emitEvent(TaviEvent.AIActionReceived("navigate_bot"))
@@ -180,20 +192,24 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun handleAIQuery(query: String) {
-        val ctx = contextAnalyzer.buildContextString(
-            _state.value.foreground, _state.value.midground, _state.value.currentScope
-        )
-        val buffer = StringBuilder()
-        taviAI.generate(query, ctx).collect { token -> buffer.append(token) }
-        val response = actionsRouter.parseAndRoute(buffer.toString())
-        actionsRouter.execute(response)
-        val message = response.message
-        _state.update { it.copy(
-            isThinking = false, isOrbExpanded = false, promptText = "",
-            aiMessage = message
-        )}
-        if (response.action == AIActions.NARRATE) emitEvent(TaviEvent.AIResponseReceived)
-        else emitEvent(TaviEvent.AIActionReceived(response.action))
+        try {
+            val ctx = contextAnalyzer.buildContextString(
+                _state.value.foreground, _state.value.midground, _state.value.currentScope
+            )
+            val buffer = StringBuilder()
+            taviAI.generate(query, ctx).collect { token -> buffer.append(token) }
+            val response = actionsRouter.parseAndRoute(buffer.toString())
+            actionsRouter.execute(response)
+            _state.update { it.copy(
+                isThinking = false, isOrbExpanded = false, promptText = "",
+                aiMessage = response.message
+            )}
+            if (response.action == AIActions.NARRATE) emitEvent(TaviEvent.AIResponseReceived)
+            else emitEvent(TaviEvent.AIActionReceived(response.action))
+        } catch (e: Exception) {
+            _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "") }
+            emitEvent(TaviEvent.BlockedOccurred("AI request failed"))
+        }
     }
 
     private suspend fun handleShellCommand(command: String) {

@@ -11,11 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import com.example.tavi.fossil.FossilDeckScreen
 import com.example.tavi.gesture.GestureIntent
 import com.example.tavi.gesture.TaviGestureRouter
@@ -36,11 +33,7 @@ fun TaviShellScreen(
     val pagerState = rememberPagerState(initialPage = 1) { pageCount }
     val scope = rememberCoroutineScope()
     val gestureRouter = remember { TaviGestureRouter() }
-    val config = LocalConfiguration.current
-    val density = LocalDensity.current
     val context = LocalContext.current
-    val screenW = with(density) { config.screenWidthDp.dp.toPx().toInt() }
-    val screenH = with(density) { config.screenHeightDp.dp.toPx().toInt() }
 
     LaunchedEffect(uiState.targetPage) {
         uiState.targetPage?.let { page ->
@@ -56,10 +49,10 @@ fun TaviShellScreen(
                 // Edge-zone gestures consume events (TAVI owns them).
                 // Center gestures are tracked but NOT consumed so HorizontalPager
                 // handles natural page-swipe from any horizontal center drag.
-                val w = size.width.toFloat()
-                val h = size.height.toFloat()
                 val fraction = com.example.tavi.gesture.EdgeZoneConfig.EDGE_FRACTION
                 awaitEachGesture {
+                    val w = size.width.toFloat()
+                    val h = size.height.toFloat()
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val startPos = down.position
                     val isEdge = startPos.x < w * fraction ||
@@ -78,7 +71,7 @@ fun TaviShellScreen(
                         if (isEdge) change.consume()
                         if (!change.pressed) break
                     }
-                    val intent = gestureRouter.onDragEnd(IntSize(screenW, screenH), pagerState.currentPage)
+                    val intent = gestureRouter.onDragEnd(size, pagerState.currentPage)
                     scope.launch {
                         when (intent) {
                             is GestureIntent.ExpandOrb -> viewModel.onOrbToggled()
@@ -101,8 +94,7 @@ fun TaviShellScreen(
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             when {
                 page == 0 -> FossilDeckScreen(
-                    candidates = (uiState.background + uiState.midground)
-                        .sortedBy { it.affinityScore },
+                    candidates = uiState.fossilCandidates.sortedBy { it.affinityScore },
                     onKeep = { node -> viewModel.onNodeTap(node) },
                     onRemove = { node ->
                         // Mark fossil in DB first so it doesn't reappear on next garden sync

@@ -14,7 +14,7 @@ interface AppNodeDao {
     @Query("SELECT * FROM app_nodes WHERE depthLayer = -1 ORDER BY userAffinityScore DESC")
     fun getMidground(): Flow<List<AppNodeEntity>>
 
-    @Query("SELECT * FROM app_nodes WHERE depthLayer = -2 ORDER BY userAffinityScore ASC")
+    @Query("SELECT * FROM app_nodes WHERE depthLayer = -2 AND fossilStatus IS NULL ORDER BY userAffinityScore ASC")
     fun getBackground(): Flow<List<AppNodeEntity>>
 
     @Query("SELECT * FROM app_nodes ORDER BY userAffinityScore ASC LIMIT :limit")
