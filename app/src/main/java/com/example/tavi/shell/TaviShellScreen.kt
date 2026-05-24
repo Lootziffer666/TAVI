@@ -121,7 +121,8 @@ fun TaviShellScreen(
                     onPromptSubmit = viewModel::onPromptSubmitted,
                     onNodeTap = viewModel::onNodeTap,
                     onNodeLongPress = viewModel::onNodeLongPress,
-                    onWardenOpen = viewModel::onWardenToggle
+                    onWardenOpen = viewModel::onWardenToggle,
+                    onSelfHeal = viewModel::onSelfHealRequested
                 )
                 else -> BotWorkspaceScreen(bot = uiState.bots[page - 2])
             }
@@ -132,6 +133,7 @@ fun TaviShellScreen(
             WardenScreen(
                 warden = warden,
                 onClose = viewModel::onWardenToggle,
+                moduleHealth = uiState.moduleHealth,
                 modifier = Modifier.fillMaxSize()
             )
         }

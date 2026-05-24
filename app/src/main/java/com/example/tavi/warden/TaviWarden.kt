@@ -11,6 +11,7 @@ class TaviWarden(private val prefs: TaviPreferences) {
     val isShizukuEnabled: Flow<Boolean> = prefs.shizukuEnabled
     val isCloudAiEnabled: Flow<Boolean> = prefs.cloudAiEnabled
     val isBotWorkspacesEnabled: Flow<Boolean> = prefs.botWorkspacesEnabled
+    val isSessionOnlyMode: Flow<Boolean> = prefs.sessionOnlyMode
 
     val isFullyOperational: Flow<Boolean> = combine(
         prefs.wardenEmergencyOff,
@@ -25,6 +26,8 @@ class TaviWarden(private val prefs: TaviPreferences) {
     suspend fun disableCloudAi() = prefs.setCloudAiEnabled(false)
     suspend fun enableBotWorkspaces() = prefs.setBotWorkspacesEnabled(true)
     suspend fun disableBotWorkspaces() = prefs.setBotWorkspacesEnabled(false)
+    suspend fun enableSessionOnlyMode() = prefs.setSessionOnlyMode(true)
+    suspend fun disableSessionOnlyMode() = prefs.setSessionOnlyMode(false)
     suspend fun triggerEmergencyOff() {
         prefs.setShizukuEnabled(false)
         prefs.setCloudAiEnabled(false)

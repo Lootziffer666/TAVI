@@ -21,14 +21,13 @@ import com.example.tavi.ui.theme.*
 fun StateAnchor(
     state: TaviState,
     modifier: Modifier = Modifier,
-    onLongPress: (() -> Unit)? = null
+    onLongPress: (() -> Unit)? = null,
+    onSelfHeal: (() -> Unit)? = null
 ) {
     val label = state.publicLabel()
     val color = state.anchorColor()
-    // Always show an invisible hit target for long-press even when label is null
-    val longPressModifier = if (onLongPress != null) {
-        Modifier.combinedClickable(onClick = {}, onLongClick = onLongPress)
-    } else Modifier
+    val canSelfHeal = onSelfHeal != null &&
+            (state is TaviState.Blocked || state is TaviState.Failed || state == TaviState.Fallback)
 
     AnimatedVisibility(
         visible = label != null,
@@ -36,14 +35,18 @@ fun StateAnchor(
         exit = fadeOut(),
         modifier = modifier.padding(top = 8.dp)
     ) {
-        if (label != null) {
-            SuggestionChip(
-                onClick = {},
-                label = { Text(label, color = SpaceBlack) },
-                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = color),
-                modifier = longPressModifier
+        val displayLabel = if (canSelfHeal) "${label ?: ""} — tap to diagnose" else (label ?: "")
+        SuggestionChip(
+            // combinedClickable in modifier handles both tap and long-press;
+            // onClick here is a no-op to avoid double-firing
+            onClick = {},
+            label = { Text(displayLabel, color = SpaceBlack) },
+            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = color),
+            modifier = Modifier.combinedClickable(
+                onClick = { if (canSelfHeal) onSelfHeal?.invoke() },
+                onLongClick = { onLongPress?.invoke() }
             )
-        }
+        )
     }
 }
 

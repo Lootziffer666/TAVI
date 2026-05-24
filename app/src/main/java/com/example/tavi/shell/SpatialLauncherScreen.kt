@@ -31,6 +31,7 @@ fun SpatialLauncherScreen(
     onNodeTap: (GardenNode) -> Unit,
     onNodeLongPress: (GardenNode) -> Unit,
     onWardenOpen: () -> Unit,
+    onSelfHeal: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -58,6 +59,7 @@ fun SpatialLauncherScreen(
         StateAnchor(
             state = taviState,
             onLongPress = onWardenOpen,
+            onSelfHeal = onSelfHeal,
             modifier = Modifier.align(Alignment.TopCenter).zIndex(3f)
         )
 
