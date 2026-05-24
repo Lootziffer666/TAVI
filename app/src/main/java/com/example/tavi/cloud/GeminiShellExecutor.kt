@@ -19,8 +19,29 @@ class GeminiShellExecutor(private val service: GeminiApiService, private val api
             ))
             val text = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: error("No response from Gemini")
-            val json = JSONObject(text.substringAfter("{").substringBeforeLast("}").let { "{$it}" })
-            json.getString("command")
+            val jsonString = extractFirstJsonObject(text)
+                ?: error("No JSON object found in response")
+            JSONObject(jsonString).getString("command")
         }
+    }
+
+    // Extracts the first top-level JSON object from arbitrary text by counting braces.
+    // Handles nested objects, multiple JSON-like structures, and markdown code fences.
+    private fun extractFirstJsonObject(text: String): String? {
+        var depth = 0
+        var start = -1
+        for (i in text.indices) {
+            when (text[i]) {
+                '{' -> {
+                    if (depth == 0) start = i
+                    depth++
+                }
+                '}' -> {
+                    depth--
+                    if (depth == 0 && start >= 0) return text.substring(start, i + 1)
+                }
+            }
+        }
+        return null
     }
 }
