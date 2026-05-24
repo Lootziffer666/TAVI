@@ -10,7 +10,7 @@ object TaviStateReducer {
             else -> state
         }
         is TaviEvent.PromptSubmitted -> state
-        is TaviEvent.AIResponseReceived -> TaviState.IntentUnclear
+        is TaviEvent.AIResponseReceived -> TaviState.Idle
         is TaviEvent.AIActionReceived -> TaviState.Idle
         is TaviEvent.RiskCommand -> TaviState.RiskDetected
         is TaviEvent.UserConfirmed -> TaviState.ActNow

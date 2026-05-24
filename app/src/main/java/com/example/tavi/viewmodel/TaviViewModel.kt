@@ -19,6 +19,7 @@ import com.example.tavi.state.TaviStateReducer
 import com.example.tavi.warden.TaviWarden
 import com.example.tavi.workspace.BotInfo
 import com.example.tavi.workspace.BotRegistry
+import com.example.tavi.BuildConfig
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -34,8 +35,13 @@ data class TaviUiState(
     val aiMessage: String? = null,
     val currentScope: String? = null,
     val bots: List<BotInfo> = BotRegistry.defaults,
+    val fossilCandidates: List<GardenNode> = emptyList(),
     val targetPage: Int? = null,
-    val pendingShellCommand: String? = null
+    val pendingShellCommand: String? = null,
+    val showWarden: Boolean = false,
+    val botWorkspacesEnabled: Boolean = true,
+    val moduleHealth: ModuleHealth = ModuleHealth(),
+    val isSessionOnlyMode: Boolean = false
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -43,19 +49,30 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private val db = TaviDatabase.getInstance(app)
     private val dao = db.appNodeDao()
     private val prefs = TaviPreferences(app)
-    private val warden = TaviWarden(prefs)
+    val warden = TaviWarden(prefs)
     private val gardenRepo = GardenRepository(dao, app)
     private val gardenEngine = GardenEngine(dao)
     private val appScanner = AppScanner(app, dao)
     private val sensorManager = SpatialSensorManager(app)
     private val localAI = LocalAIEngine(app)
     private val contextAnalyzer = ContextAnalyzer()
+    private val workspaceRepo = com.example.tavi.workspace.WorkspaceRepository(prefs)
     private val actionsRouter = MobileActionsRouter(app, gardenEngine)
     private val intentRouter = IntentRouter(BotRegistry.names)
-    private val taviAI = TaviAIEngine(app, localAI, RetrofitClient.geminiService, warden)
+    private val selfHealEngine = SelfHealEngine()
+    private val taviAI = TaviAIEngine(
+        context = app,
+        localEngine = localAI,
+        geminiService = RetrofitClient.geminiService,
+        warden = warden,
+        geminiApiKey = BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "placeholder" } ?: ""
+    )
 
     private val _state = MutableStateFlow(TaviUiState())
     val state: StateFlow<TaviUiState> = _state.asStateFlow()
+
+    // Session-scope anchor overrides — not persisted to DB when sessionOnlyMode is on
+    private val _sessionAnchorOverrides = MutableStateFlow<Map<String, Boolean>>(emptyMap())
 
     private var stateGrammar: TaviState = TaviState.Idle
 
@@ -64,25 +81,57 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectSensorData()
         collectGardenData()
         collectPreferences()
+        collectBots()
+        collectBotWorkspacesEnabled()
+        collectWardenPrivateMode()
+        collectSessionOnlyMode()
         initAIEngine()
     }
 
     private fun collectSensorData() = viewModelScope.launch {
-        sensorManager.tiltFlow.collect { tilt ->
-            _state.update { it.copy(tilt = tilt) }
+        runCatching {
+            sensorManager.tiltFlow.collect { tilt ->
+                _state.update { it.copy(tilt = tilt) }
+            }
+        }.onFailure {
+            _state.update { it.copy(moduleHealth = it.moduleHealth.copy(sensor = ModuleStatus.FAILED)) }
         }
     }
 
     private fun collectGardenData() {
         viewModelScope.launch {
-            combine(
-                gardenRepo.foregroundNodes(),
-                gardenRepo.midgroundNodes(),
-                gardenRepo.backgroundNodes()
-            ) { fg, mid, bg -> Triple(fg, mid, bg) }
-                .collect { (fg, mid, bg) ->
-                    _state.update { it.copy(foreground = fg, midground = mid, background = bg) }
+            runCatching {
+                combine(
+                    combine(
+                        gardenRepo.foregroundNodes(),
+                        gardenRepo.midgroundNodes(),
+                        gardenRepo.backgroundNodes(),
+                        gardenRepo.fossilCandidates()
+                    ) { fg, mid, bg, fossils -> listOf(fg, mid, bg, fossils) },
+                    _sessionAnchorOverrides
+                ) { layers, overrides ->
+                    fun List<GardenNode>.applyOverrides() = if (overrides.isEmpty()) this
+                    else map { node -> overrides[node.packageName]?.let { node.copy(isSpatiallyAnchored = it) } ?: node }
+                    listOf(
+                        layers[0].applyOverrides(),
+                        layers[1].applyOverrides(),
+                        layers[2].applyOverrides(),
+                        layers[3]  // fossils don't need anchor override
+                    )
+                }.collect { layers ->
+                    _state.update {
+                        it.copy(
+                            foreground = layers[0],
+                            midground = layers[1],
+                            background = layers[2],
+                            fossilCandidates = layers[3],
+                            moduleHealth = it.moduleHealth.copy(garden = ModuleStatus.OK)
+                        )
+                    }
                 }
+            }.onFailure {
+                _state.update { it.copy(moduleHealth = it.moduleHealth.copy(garden = ModuleStatus.FAILED)) }
+            }
         }
     }
 
@@ -92,15 +141,50 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun collectBots() = viewModelScope.launch {
+        workspaceRepo.bots.collect { bots ->
+            _state.update { it.copy(bots = bots) }
+        }
+    }
+
+    private fun collectBotWorkspacesEnabled() = viewModelScope.launch {
+        warden.isBotWorkspacesEnabled.collect { enabled ->
+            _state.update { it.copy(botWorkspacesEnabled = enabled) }
+        }
+    }
+
+    private fun collectWardenPrivateMode() = viewModelScope.launch {
+        warden.isPrivateMode.collect { isPrivate ->
+            emitEvent(if (isPrivate) TaviEvent.WardenPrivateModeOn else TaviEvent.WardenPrivateModeOff)
+        }
+    }
+
+    private fun collectSessionOnlyMode() = viewModelScope.launch {
+        warden.isSessionOnlyMode.collect { sessionOnly ->
+            _state.update { it.copy(isSessionOnlyMode = sessionOnly) }
+            // Clear session overrides when mode is turned off (return to DB-persisted state)
+            if (!sessionOnly) _sessionAnchorOverrides.value = emptyMap()
+        }
+    }
+
     private fun initAIEngine() = viewModelScope.launch {
         prefs.aiModelPath.firstOrNull()?.let { path ->
             if (path.isNotBlank()) {
-                localAI.initialize(path)
-                if (!localAI.isReady()) emitEvent(TaviEvent.AIEngineUnavailable)
+                val result = localAI.initialize(path)
+                if (result.isSuccess && localAI.isReady()) {
+                    _state.update { it.copy(moduleHealth = it.moduleHealth.copy(localAI = ModuleStatus.OK)) }
+                } else {
+                    _state.update { it.copy(moduleHealth = it.moduleHealth.copy(localAI = ModuleStatus.FAILED)) }
+                    emitEvent(TaviEvent.AIEngineUnavailable)
+                }
             } else {
+                _state.update { it.copy(moduleHealth = it.moduleHealth.copy(localAI = ModuleStatus.DEGRADED)) }
                 emitEvent(TaviEvent.AIEngineUnavailable)
             }
-        } ?: emitEvent(TaviEvent.AIEngineUnavailable)
+        } ?: run {
+            _state.update { it.copy(moduleHealth = it.moduleHealth.copy(localAI = ModuleStatus.DEGRADED)) }
+            emitEvent(TaviEvent.AIEngineUnavailable)
+        }
     }
 
     fun onOrbToggled() {
@@ -124,7 +208,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             when (val result = intentRouter.route(input)) {
                 is IntentRouterResult.QueryAI -> handleAIQuery(result.query)
                 is IntentRouterResult.NavigateBot -> {
-                    val botIdx = BotRegistry.defaults.indexOfFirst { it.id == result.botName }
+                    val botIdx = _state.value.bots.indexOfFirst { it.id == result.botName }
                     if (botIdx >= 0) _state.update { it.copy(targetPage = 2 + botIdx) }
                     _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "") }
                     emitEvent(TaviEvent.AIActionReceived("navigate_bot"))
@@ -147,8 +231,12 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                     emitEvent(TaviEvent.AIActionReceived("settings"))
                 }
                 is IntentRouterResult.BuildLayout -> {
-                    _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "",
-                        aiMessage = "Layout update: ${result.prompt}") }
+                    _state.update {
+                        it.copy(
+                            isThinking = false, isOrbExpanded = false, promptText = "",
+                            aiMessage = "Layout update: ${result.prompt}"
+                        )
+                    }
                     emitEvent(TaviEvent.AIActionReceived("build_layout"))
                 }
             }
@@ -156,20 +244,38 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun handleAIQuery(query: String) {
-        val ctx = contextAnalyzer.buildContextString(
-            _state.value.foreground, _state.value.midground, _state.value.currentScope
-        )
-        val buffer = StringBuilder()
-        taviAI.generate(query, ctx).collect { token -> buffer.append(token) }
-        val response = actionsRouter.parseAndRoute(buffer.toString())
-        actionsRouter.execute(response)
-        val message = response.message
-        _state.update { it.copy(
-            isThinking = false, isOrbExpanded = false, promptText = "",
-            aiMessage = message
-        )}
-        if (response.action == AIActions.NARRATE) emitEvent(TaviEvent.AIResponseReceived)
-        else emitEvent(TaviEvent.AIActionReceived(response.action))
+        try {
+            val ctx = contextAnalyzer.buildContextString(
+                _state.value.foreground, _state.value.midground, _state.value.currentScope
+            )
+            val buffer = StringBuilder()
+            taviAI.generate(query, ctx).collect { token -> buffer.append(token) }
+            val response = actionsRouter.parseAndRoute(buffer.toString())
+            if (!_state.value.isSessionOnlyMode) actionsRouter.execute(response)
+
+            // AI-generated shell commands go through the same risk gate as manual ! commands
+            if (response.action == AIActions.EXECUTE_SHELL && !response.target.isNullOrBlank()) {
+                handleShellCommand(response.target)
+                return
+            }
+
+            _state.update {
+                it.copy(
+                    isThinking = false, isOrbExpanded = false, promptText = "",
+                    aiMessage = response.message
+                )
+            }
+            if (response.action == AIActions.NARRATE) emitEvent(TaviEvent.AIResponseReceived)
+            else emitEvent(TaviEvent.AIActionReceived(response.action))
+        } catch (e: Exception) {
+            _state.update {
+                it.copy(
+                    isThinking = false, isOrbExpanded = false, promptText = "",
+                    moduleHealth = it.moduleHealth.copy(cloudAI = ModuleStatus.DEGRADED)
+                )
+            }
+            emitEvent(TaviEvent.BlockedOccurred("AI request failed"))
+        }
     }
 
     private suspend fun handleShellCommand(command: String) {
@@ -188,8 +294,13 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         emitEvent(TaviEvent.UserConfirmed)
         viewModelScope.launch {
             ShizukuManager.executeCommand(cmd).fold(
-                onSuccess = { emitEvent(TaviEvent.ExecutionSuccess) },
-                onFailure = { emitEvent(TaviEvent.ExecutionFailed(it.message ?: "Unknown", "Try again or check Shizuku")) }
+                onSuccess = { output ->
+                    _state.update { it.copy(aiMessage = output.ifBlank { "Done." }) }
+                    emitEvent(TaviEvent.ExecutionSuccess)
+                },
+                onFailure = {
+                    emitEvent(TaviEvent.ExecutionFailed(it.message ?: "Unknown", "Try again or check Shizuku"))
+                }
             )
             _state.update { it.copy(pendingShellCommand = null) }
         }
@@ -211,10 +322,50 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onNodeLongPress(node: GardenNode) = viewModelScope.launch {
-        gardenEngine.toggleAnchor(node.packageName, !node.isSpatiallyAnchored)
+        val newAnchorState = !node.isSpatiallyAnchored
+        if (_state.value.isSessionOnlyMode) {
+            // Session-only: update in-memory overrides without touching the DB
+            _sessionAnchorOverrides.update { it + (node.packageName to newAnchorState) }
+        } else {
+            gardenEngine.toggleAnchor(node.packageName, newAnchorState)
+        }
+    }
+
+    fun onFossilRemove(node: GardenNode) = viewModelScope.launch {
+        gardenEngine.markAsFossil(node.packageName)
     }
 
     fun clearTargetPage() = _state.update { it.copy(targetPage = null) }
+
+    fun onWardenToggle() = _state.update { it.copy(showWarden = !it.showWarden) }
+
+    fun onSelfHealRequested() {
+        val currentState = _state.value
+        if (currentState.isThinking) return
+        val prompt = selfHealEngine.buildPrompt(stateGrammar, currentState.moduleHealth)
+        _state.update { it.copy(isThinking = true) }
+        viewModelScope.launch {
+            try {
+                val ctx = contextAnalyzer.buildContextString(
+                    currentState.foreground, currentState.midground, currentState.currentScope
+                )
+                val buffer = StringBuilder()
+                taviAI.generate(prompt, ctx).collect { token -> buffer.append(token) }
+                val response = actionsRouter.parseAndRoute(buffer.toString())
+                _state.update {
+                    it.copy(isThinking = false, aiMessage = response.message)
+                }
+                emitEvent(TaviEvent.AIResponseReceived)
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        isThinking = false,
+                        aiMessage = "Self-heal unavailable. Check: ${currentState.moduleHealth.degradedSummary.ifBlank { "all modules appear OK" }}"
+                    )
+                }
+            }
+        }
+    }
 
     private fun emitEvent(event: TaviEvent) {
         stateGrammar = TaviStateReducer.reduce(stateGrammar, event)

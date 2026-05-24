@@ -6,7 +6,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import kotlin.math.abs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 data class SwipeState(
     val offsetX: Float = 0f,
@@ -29,11 +30,11 @@ fun Modifier.swipeToDecide(
     onSwipedLeft: () -> Unit,
     onSwipedRight: () -> Unit,
     offsetXAnimatable: Animatable<Float, *>,
-    coroutineScope: kotlinx.coroutines.CoroutineScope
+    coroutineScope: CoroutineScope
 ): Modifier = this.pointerInput(Unit) {
     detectDragGestures(
         onDragEnd = {
-            coroutineScope.kotlinx.coroutines.launch {
+            coroutineScope.launch {
                 when {
                     offsetXAnimatable.value < -threshold -> {
                         offsetXAnimatable.animateTo(-1200f, spring())
@@ -51,7 +52,7 @@ fun Modifier.swipeToDecide(
         },
         onDrag = { change, dragAmount ->
             change.consume()
-            coroutineScope.kotlinx.coroutines.launch {
+            coroutineScope.launch {
                 offsetXAnimatable.snapTo(offsetXAnimatable.value + dragAmount.x)
             }
         }

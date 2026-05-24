@@ -4,22 +4,24 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import com.example.tavi.data.AppNodeDao
 import com.example.tavi.data.AppNodeEntity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 class GardenRepository(private val dao: AppNodeDao, private val context: Context) {
 
     fun foregroundNodes(limit: Int = 5): Flow<List<GardenNode>> =
-        dao.getForeground(limit).map { entities -> entities.mapToNodes() }
+        dao.getForeground(limit).map { entities -> entities.mapToNodes() }.flowOn(Dispatchers.IO)
 
     fun midgroundNodes(): Flow<List<GardenNode>> =
-        dao.getMidground().map { entities -> entities.mapToNodes() }
+        dao.getMidground().map { entities -> entities.mapToNodes() }.flowOn(Dispatchers.IO)
 
     fun backgroundNodes(): Flow<List<GardenNode>> =
-        dao.getBackground().map { entities -> entities.mapToNodes() }
+        dao.getBackground().map { entities -> entities.mapToNodes() }.flowOn(Dispatchers.IO)
 
     fun fossilCandidates(): Flow<List<GardenNode>> =
-        dao.getFossilCandidates().map { it.mapToNodes() }
+        dao.getFossilCandidates().map { it.mapToNodes() }.flowOn(Dispatchers.IO)
 
     private fun List<AppNodeEntity>.mapToNodes(): List<GardenNode> = map { entity ->
         GardenNode(

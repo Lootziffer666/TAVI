@@ -39,5 +39,11 @@ class AppScanner(private val context: Context, private val dao: AppNodeDao) {
 
         dao.insertAll(newEntities)
         removedApps.forEach { dao.delete(it) }
+
+        // If the user cancelled an uninstall dialog after we already marked an app as a fossil
+        // candidate, the app is still installed but invisible to the launcher. Restore it so
+        // it reappears in the background layer where the garden engine can re-score it.
+        val stillInstalled = installed.intersect(existing).toList()
+        if (stillInstalled.isNotEmpty()) dao.restoreCancelledFossils(stillInstalled)
     }
 }

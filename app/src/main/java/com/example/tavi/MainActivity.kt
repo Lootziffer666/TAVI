@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             TaviTheme {
                 val uiState by viewModel.state.collectAsState()
-                TaviShellScreen(uiState = uiState, viewModel = viewModel)
+                TaviShellScreen(uiState = uiState, viewModel = viewModel, warden = viewModel.warden)
             }
         }
     }

@@ -1,8 +1,22 @@
 # TAVI Cluster Map — 19 Cluster mit Slot Contracts
 
-**Stand:** 2026-05-20
-**Status:** Initial-Ausarbeitung aus [`docs/zen-concept.md`](docs/zen-concept.md). Verbindlich nach Christians Gegenlesen.
+**Stand:** 2026-05-24 (aktualisiert nach TV-004 Delivery)
+**Status:** Cluster 11, 12, 13, 14, 17, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
 **Schema:** Jeder Cluster folgt dem Slot Contract aus `CONCEPT_CONTRACT.md` (Name, Purpose, User State, Input, Output, Visible Surface, Failure Behavior) plus Roadmap-Status, Dependencies und MVP-Cut-Empfehlung.
+
+---
+
+## Implementierungsstatus
+
+| Cluster | Name | Status |
+|---|---|---|
+| 11 | App Fossil Finder | **Implemented** — FossilDeckScreen + GardenEngine.markAsFossil() |
+| 12 | Zen Shell / Launcher Rooms | **Implemented** — GardenCanvas + FocusZone + SpatialLauncherScreen |
+| 13 | Overlay / Handles / Gesture Edge | **Implemented** — TaviGestureRouter + SwipeEngine |
+| 14 | State Grammar / One Anchor | **Implemented** — TaviState + TaviStateReducer + StateAnchor |
+| 17 | AI / Tool Handoff | **Implemented** — LocalAIEngine + TaviAIEngine + IntentRouter |
+| 19 | Privacy / Control / Warden | **Implemented** — TaviWarden + WardenScreen |
+| 1–10, 15–16, 18 | Weitere Cluster | Roadmap |
 
 ---
 
@@ -10,6 +24,7 @@
 
 **Prototype now (12):** Cluster 1, 2, 3, 4, 5, 8, 9, 11, 14, 15, 18, 19
 **Roadmap (7):** Cluster 6, 7, 10, 12, 13, 16, 17
+**Implementiert (TV-004):** Cluster 11, 12, 13, 14, 17, 19
 
 **Empfohlener MVP-Schnitt (5 Cluster):** 1 Clipboard, 2 Snippets, 5 Handoffs, 14 State Grammar, 19 Privacy/Warden. Alles andere ist Phase 2+.
 

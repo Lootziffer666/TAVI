@@ -9,7 +9,7 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/ic_launcher"
         android:label="TAVI"
         android:supportsRtl="true"
         android:theme="@style/Theme.Tavi">
@@ -38,7 +38,7 @@
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <receiver
-            android:name=".receiver.BootReceiver"
+            android:name=".receiver.TaviBootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

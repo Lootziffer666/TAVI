@@ -3,6 +3,8 @@ package com.example.tavi.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
@@ -14,23 +16,37 @@ import androidx.compose.ui.unit.dp
 import com.example.tavi.state.TaviState
 import com.example.tavi.ui.theme.*
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun StateAnchor(state: TaviState, modifier: Modifier = Modifier) {
+fun StateAnchor(
+    state: TaviState,
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null,
+    onSelfHeal: (() -> Unit)? = null
+) {
     val label = state.publicLabel()
     val color = state.anchorColor()
+    val canSelfHeal = onSelfHeal != null &&
+            (state is TaviState.Blocked || state is TaviState.Failed || state == TaviState.Fallback)
+
     AnimatedVisibility(
         visible = label != null,
         enter = fadeIn(),
         exit = fadeOut(),
         modifier = modifier.padding(top = 8.dp)
     ) {
-        if (label != null) {
-            SuggestionChip(
-                onClick = {},
-                label = { Text(label, color = SpaceBlack) },
-                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = color)
+        val displayLabel = if (canSelfHeal) "${label ?: ""} — tap to diagnose" else (label ?: "")
+        SuggestionChip(
+            // combinedClickable in modifier handles both tap and long-press;
+            // onClick here is a no-op to avoid double-firing
+            onClick = {},
+            label = { Text(displayLabel, color = SpaceBlack) },
+            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = color),
+            modifier = Modifier.combinedClickable(
+                onClick = { if (canSelfHeal) onSelfHeal?.invoke() },
+                onLongClick = { onLongPress?.invoke() }
             )
-        }
+        )
     }
 }
 

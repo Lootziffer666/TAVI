@@ -4,59 +4,71 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import com.example.tavi.cloud.GeminiApiService
+import com.example.tavi.cloud.GeminiContent
+import com.example.tavi.cloud.GeminiPart
+import com.example.tavi.cloud.GeminiRequest
 import com.example.tavi.warden.TaviWarden
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.onEmpty
+import kotlinx.coroutines.flow.flowOf
 
 class TaviAIEngine(
     private val context: Context,
     private val localEngine: LocalAIEngine,
-    private val geminiService: GeminiApiService?,
-    private val warden: TaviWarden
+    private val geminiService: GeminiApiService,
+    private val warden: TaviWarden,
+    private val geminiApiKey: String = ""
 ) {
-    private val systemPromptForCloud = """
+    private val cloudSystemPrompt = """
         You are TAVI, an Android launcher assistant. Respond ONLY with valid JSON.
         Available actions: promote_app, demote_app, create_scope, narrate, simplify_view, expand_view, navigate_bot, execute_shell.
         Format: {"action": "<action>", "target": "<optional>", "message": "<optional user message>"}
         If unclear, use action=narrate with a clarifying question.
     """.trimIndent()
 
-    fun generate(prompt: String, contextSummary: String): Flow<String> {
-        return when {
-            localEngine.isReady() -> localEngine.generate(prompt, contextSummary)
-                .catch { emit(localEngine.ruleBasedResponse(prompt)) }
-            hasNetwork() -> cloudFallback(prompt, contextSummary)
-            else -> flow { emit(localEngine.ruleBasedResponse(prompt)) }
+    // Wraps local → cloud → rule-based fallback chain.
+    // Checks warden.isCloudAiEnabled before attempting any cloud request.
+    fun generate(prompt: String, contextSummary: String): Flow<String> = flow {
+        val cloudEnabled = warden.isCloudAiEnabled.firstOrNull() ?: false
+        val source = when {
+            localEngine.isReady() ->
+                localEngine.generate(prompt, contextSummary)
+                    .catch { emit(localEngine.ruleBasedResponse(prompt)) }
+            cloudEnabled && geminiApiKey.isNotBlank() && hasNetwork() ->
+                cloudFallback(prompt, contextSummary)
+            else ->
+                flowOf(localEngine.ruleBasedResponse(prompt))
         }
+        emitAll(source)
     }
 
     private fun cloudFallback(prompt: String, contextSummary: String): Flow<String> = flow {
-        val service = geminiService ?: run {
-            emit(localEngine.ruleBasedResponse(prompt))
-            return@flow
-        }
-        val request = com.example.tavi.cloud.GeminiRequest(
+        val request = GeminiRequest(
             contents = listOf(
-                com.example.tavi.cloud.GeminiContent(
-                    parts = listOf(com.example.tavi.cloud.GeminiPart("$systemPromptForCloud\n\nContext: $contextSummary\n\nUser: $prompt"))
+                GeminiContent(
+                    parts = listOf(
+                        GeminiPart("$cloudSystemPrompt\n\nContext: $contextSummary\n\nUser: $prompt")
+                    )
                 )
             )
         )
         runCatching {
-            val response = service.generateContent("", request)
+            val response = geminiService.generateContent(geminiApiKey, request)
             val text = response.candidates.firstOrNull()
                 ?.content?.parts?.firstOrNull()?.text
                 ?: localEngine.ruleBasedResponse(prompt)
             emit(text)
-        }.onFailure { emit(localEngine.ruleBasedResponse(prompt)) }
+        }.onFailure {
+            emit(localEngine.ruleBasedResponse(prompt))
+        }
     }
 
     private fun hasNetwork(): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork ?: return false
-        val caps = cm.getNetworkCapabilities(network) ?: return false
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 }

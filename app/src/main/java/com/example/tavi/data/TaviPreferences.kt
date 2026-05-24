@@ -21,6 +21,7 @@ class TaviPreferences(private val context: Context) {
         val BOT_WORKSPACES_ENABLED = booleanPreferencesKey("botWorkspacesEnabled")
         val CLOUD_AI_ENABLED = booleanPreferencesKey("cloudAiEnabled")
         val TAVI_WORKSPACES_JSON = stringPreferencesKey("taviWorkspaces")
+        val SESSION_ONLY_MODE = booleanPreferencesKey("sessionOnlyMode")
     }
 
     val maxFocusItems: Flow<Int> = context.dataStore.data.map { it[MAX_FOCUS_ITEMS] ?: 5 }
@@ -33,6 +34,7 @@ class TaviPreferences(private val context: Context) {
     val botWorkspacesEnabled: Flow<Boolean> = context.dataStore.data.map { it[BOT_WORKSPACES_ENABLED] ?: true }
     val cloudAiEnabled: Flow<Boolean> = context.dataStore.data.map { it[CLOUD_AI_ENABLED] ?: false }
     val taviWorkspacesJson: Flow<String?> = context.dataStore.data.map { it[TAVI_WORKSPACES_JSON] }
+    val sessionOnlyMode: Flow<Boolean> = context.dataStore.data.map { it[SESSION_ONLY_MODE] ?: false }
 
     suspend fun setMaxFocusItems(value: Int) = context.dataStore.edit { it[MAX_FOCUS_ITEMS] = value }
     suspend fun setReduceMotion(value: Boolean) = context.dataStore.edit { it[REDUCE_MOTION] = value }
@@ -43,5 +45,8 @@ class TaviPreferences(private val context: Context) {
     suspend fun setShizukuEnabled(value: Boolean) = context.dataStore.edit { it[SHIZUKU_ENABLED] = value }
     suspend fun setPrivateModeEnabled(value: Boolean) = context.dataStore.edit { it[PRIVATE_MODE_ENABLED] = value }
     suspend fun setCloudAiEnabled(value: Boolean) = context.dataStore.edit { it[CLOUD_AI_ENABLED] = value }
+    suspend fun setBotWorkspacesEnabled(value: Boolean) = context.dataStore.edit { it[BOT_WORKSPACES_ENABLED] = value }
+    suspend fun setEmergencyOff(value: Boolean) = context.dataStore.edit { it[WARDEN_EMERGENCY_OFF] = value }
     suspend fun setTaviWorkspacesJson(json: String) = context.dataStore.edit { it[TAVI_WORKSPACES_JSON] = json }
+    suspend fun setSessionOnlyMode(value: Boolean) = context.dataStore.edit { it[SESSION_ONLY_MODE] = value }
 }

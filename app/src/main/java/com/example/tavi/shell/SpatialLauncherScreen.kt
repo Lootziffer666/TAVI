@@ -1,5 +1,7 @@
 package com.example.tavi.shell
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -11,6 +13,7 @@ import com.example.tavi.sensor.TiltState
 import com.example.tavi.state.TaviState
 import com.example.tavi.ui.components.StateAnchor
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SpatialLauncherScreen(
     foreground: List<GardenNode>,
@@ -27,11 +30,15 @@ fun SpatialLauncherScreen(
     onPromptSubmit: () -> Unit,
     onNodeTap: (GardenNode) -> Unit,
     onNodeLongPress: (GardenNode) -> Unit,
+    onWardenOpen: () -> Unit,
+    onSelfHeal: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
+            // Long-press on canvas background opens Warden — no persistent button needed
+            .combinedClickable(onClick = {}, onLongClick = onWardenOpen)
             // Tilt applied here, inside the page — not on the pager item itself
             .graphicsLayer {
                 rotationX = tilt.y * 6f
@@ -48,9 +55,11 @@ fun SpatialLauncherScreen(
             modifier = Modifier.fillMaxSize().zIndex(0f)
         )
 
-        // Layer 1: State anchor chip
+        // Layer 1: State anchor chip (long-press opens Warden when chip is visible)
         StateAnchor(
             state = taviState,
+            onLongPress = onWardenOpen,
+            onSelfHeal = onSelfHeal,
             modifier = Modifier.align(Alignment.TopCenter).zIndex(3f)
         )
 
