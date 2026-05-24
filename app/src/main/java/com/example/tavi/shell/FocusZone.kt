@@ -5,9 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -68,17 +65,25 @@ fun FocusZone(
             .border(strokeWidth.dp, breathColor, RoundedCornerShape(32.dp))
             .padding(16.dp)
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        // max 5 items: 3+2 layout — no lazy loading needed, no height constraints
+        val capped = nodes.take(5)
+        val row1 = capped.take(3)
+        val row2 = capped.drop(3)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(nodes.take(5), key = { it.packageName }) { node ->
-                AppNodeIcon(
-                    node = node,
-                    onTap = { onNodeTap(node) },
-                    onLongPress = { onNodeLongPress(node) }
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row1.forEach { node ->
+                    AppNodeIcon(node = node, onTap = { onNodeTap(node) }, onLongPress = { onNodeLongPress(node) })
+                }
+            }
+            if (row2.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    row2.forEach { node ->
+                        AppNodeIcon(node = node, onTap = { onNodeTap(node) }, onLongPress = { onNodeLongPress(node) })
+                    }
+                }
             }
         }
     }

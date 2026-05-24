@@ -23,5 +23,11 @@ class TaviWarden(private val prefs: TaviPreferences) {
     suspend fun disablePrivateMode() = prefs.setPrivateModeEnabled(false)
     suspend fun enableCloudAi() = prefs.setCloudAiEnabled(true)
     suspend fun disableCloudAi() = prefs.setCloudAiEnabled(false)
-    suspend fun triggerEmergencyOff() = prefs.setShizukuEnabled(false)
+    suspend fun enableBotWorkspaces() = prefs.setBotWorkspacesEnabled(true)
+    suspend fun disableBotWorkspaces() = prefs.setBotWorkspacesEnabled(false)
+    suspend fun triggerEmergencyOff() {
+        prefs.setShizukuEnabled(false)
+        prefs.setCloudAiEnabled(false)
+        prefs.setEmergencyOff(true)
+    }
 }

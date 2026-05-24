@@ -103,7 +103,11 @@ fun WardenScreen(
             title = "Bot workspaces",
             subtitle = "Show AI tool pages (ChatGPT, Claude, Gemini, etc.)",
             checked = isBotWorkspaces,
-            onCheckedChange = { _ -> /* persisted via prefs directly if needed */ },
+            onCheckedChange = { enabled ->
+                scope.launch {
+                    if (enabled) warden.enableBotWorkspaces() else warden.disableBotWorkspaces()
+                }
+            },
             accentColor = BreathBlue
         )
 

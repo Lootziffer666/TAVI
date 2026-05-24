@@ -43,5 +43,7 @@ class TaviPreferences(private val context: Context) {
     suspend fun setShizukuEnabled(value: Boolean) = context.dataStore.edit { it[SHIZUKU_ENABLED] = value }
     suspend fun setPrivateModeEnabled(value: Boolean) = context.dataStore.edit { it[PRIVATE_MODE_ENABLED] = value }
     suspend fun setCloudAiEnabled(value: Boolean) = context.dataStore.edit { it[CLOUD_AI_ENABLED] = value }
+    suspend fun setBotWorkspacesEnabled(value: Boolean) = context.dataStore.edit { it[BOT_WORKSPACES_ENABLED] = value }
+    suspend fun setEmergencyOff(value: Boolean) = context.dataStore.edit { it[WARDEN_EMERGENCY_OFF] = value }
     suspend fun setTaviWorkspacesJson(json: String) = context.dataStore.edit { it[TAVI_WORKSPACES_JSON] = json }
 }

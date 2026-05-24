@@ -5,6 +5,7 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 
 class WorkspaceRepository(private val prefs: TaviPreferences) {
@@ -23,19 +24,15 @@ class WorkspaceRepository(private val prefs: TaviPreferences) {
         prefs.setTaviWorkspacesJson(json)
     }
 
-    suspend fun addBot(bot: BotInfo) {
-        val current = runCatching {
-            adapter.fromJson(prefs.taviWorkspacesJson.toString()) ?: BotRegistry.defaults
-        }.getOrElse { BotRegistry.defaults }
-        saveBots(current + bot)
+    private suspend fun currentBots(): List<BotInfo> {
+        val json = prefs.taviWorkspacesJson.firstOrNull()
+        return if (json.isNullOrBlank()) BotRegistry.defaults
+        else runCatching { adapter.fromJson(json) ?: BotRegistry.defaults }.getOrElse { BotRegistry.defaults }
     }
 
-    suspend fun removeBot(botId: String) {
-        val current = runCatching {
-            adapter.fromJson(prefs.taviWorkspacesJson.toString()) ?: BotRegistry.defaults
-        }.getOrElse { BotRegistry.defaults }
-        saveBots(current.filter { it.id != botId })
-    }
+    suspend fun addBot(bot: BotInfo) = saveBots(currentBots() + bot)
+
+    suspend fun removeBot(botId: String) = saveBots(currentBots().filter { it.id != botId })
 
     suspend fun reset() = saveBots(BotRegistry.defaults)
 }

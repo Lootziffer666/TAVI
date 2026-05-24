@@ -37,7 +37,8 @@ data class TaviUiState(
     val bots: List<BotInfo> = BotRegistry.defaults,
     val targetPage: Int? = null,
     val pendingShellCommand: String? = null,
-    val showWarden: Boolean = false
+    val showWarden: Boolean = false,
+    val botWorkspacesEnabled: Boolean = true
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -74,6 +75,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectGardenData()
         collectPreferences()
         collectBots()
+        collectBotWorkspacesEnabled()
         initAIEngine()
     }
 
@@ -105,6 +107,12 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private fun collectBots() = viewModelScope.launch {
         workspaceRepo.bots.collect { bots ->
             _state.update { it.copy(bots = bots) }
+        }
+    }
+
+    private fun collectBotWorkspacesEnabled() = viewModelScope.launch {
+        warden.isBotWorkspacesEnabled.collect { enabled ->
+            _state.update { it.copy(botWorkspacesEnabled = enabled) }
         }
     }
 

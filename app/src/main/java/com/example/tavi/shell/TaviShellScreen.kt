@@ -2,13 +2,14 @@ package com.example.tavi.shell
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -31,7 +32,7 @@ fun TaviShellScreen(
     viewModel: TaviViewModel,
     warden: TaviWarden
 ) {
-    val pageCount = 2 + uiState.bots.size
+    val pageCount = if (uiState.botWorkspacesEnabled) 2 + uiState.bots.size else 2
     val pagerState = rememberPagerState(initialPage = 1) { pageCount }
     val scope = rememberCoroutineScope()
     val gestureRouter = remember { TaviGestureRouter() }
@@ -52,31 +53,49 @@ fun TaviShellScreen(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { offset -> gestureRouter.onDragStart(offset) },
-                    onDrag = { _, delta -> gestureRouter.onDrag(delta) },
-                    onDragEnd = {
-                        val intent = gestureRouter.onDragEnd(
-                            IntSize(screenW, screenH),
-                            pagerState.currentPage
+                // Edge-zone gestures consume events (TAVI owns them).
+                // Center gestures are tracked but NOT consumed so HorizontalPager
+                // handles natural page-swipe from any horizontal center drag.
+                val w = size.width.toFloat()
+                val h = size.height.toFloat()
+                val fraction = com.example.tavi.gesture.EdgeZoneConfig.EDGE_FRACTION
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startPos = down.position
+                    val isEdge = startPos.x < w * fraction ||
+                                 startPos.x > w * (1 - fraction) ||
+                                 startPos.y < h * fraction ||
+                                 startPos.y > h * (1 - fraction)
+                    gestureRouter.onDragStart(startPos)
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        val delta = Offset(
+                            change.position.x - change.previousPosition.x,
+                            change.position.y - change.previousPosition.y
                         )
-                        scope.launch {
-                            when (intent) {
-                                is GestureIntent.ExpandOrb -> viewModel.onOrbToggled()
-                                is GestureIntent.NavigatePage -> {
-                                    val target = (pagerState.currentPage + intent.delta)
-                                        .coerceIn(0, pageCount - 1)
-                                    pagerState.animateScrollToPage(target)
-                                }
-                                GestureIntent.OpenFossilDeck -> pagerState.animateScrollToPage(0)
-                                GestureIntent.OpenBotWorkspaces -> {
-                                    if (uiState.bots.isNotEmpty()) pagerState.animateScrollToPage(2)
-                                }
-                                GestureIntent.CollapseOrb, GestureIntent.Passthrough -> Unit
+                        gestureRouter.onDrag(delta)
+                        if (isEdge) change.consume()
+                        if (!change.pressed) break
+                    }
+                    val intent = gestureRouter.onDragEnd(IntSize(screenW, screenH), pagerState.currentPage)
+                    scope.launch {
+                        when (intent) {
+                            is GestureIntent.ExpandOrb -> viewModel.onOrbToggled()
+                            is GestureIntent.NavigatePage -> {
+                                val target = (pagerState.currentPage + intent.delta)
+                                    .coerceIn(0, pageCount - 1)
+                                pagerState.animateScrollToPage(target)
                             }
+                            GestureIntent.OpenFossilDeck -> pagerState.animateScrollToPage(0)
+                            GestureIntent.OpenBotWorkspaces -> {
+                                if (uiState.botWorkspacesEnabled && uiState.bots.isNotEmpty())
+                                    pagerState.animateScrollToPage(2)
+                            }
+                            GestureIntent.CollapseOrb, GestureIntent.Passthrough -> Unit
                         }
                     }
-                )
+                }
             }
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
