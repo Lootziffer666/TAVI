@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import com.example.tavi.garden.GardenEngine
+import com.example.tavi.util.extractFirstJsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -13,16 +14,17 @@ class MobileActionsRouter(
     private val gardenEngine: GardenEngine
 ) {
 
-    suspend fun parseAndRoute(rawJson: String): AIResponse = withContext(Dispatchers.Default) {
+    suspend fun parseAndRoute(rawResponse: String): AIResponse = withContext(Dispatchers.Default) {
         runCatching {
-            val json = JSONObject(rawJson)
+            val jsonStr = extractFirstJsonObject(rawResponse) ?: error("No JSON in response")
+            val json = JSONObject(jsonStr)
             AIResponse(
                 action = json.optString("action", AIActions.NARRATE),
                 target = json.optString("target").takeIf { it.isNotBlank() },
                 message = json.optString("message").takeIf { it.isNotBlank() }
             )
         }.getOrElse {
-            AIResponse(action = AIActions.NARRATE, message = "I couldn't process that. Try again.")
+            AIResponse(action = AIActions.NARRATE, message = rawResponse.take(200).ifBlank { "No response." })
         }
     }
 

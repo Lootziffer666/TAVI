@@ -75,7 +75,7 @@ fun PromptOrb(
                     )
                     if (isThinking) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp).padding(start = 8.dp),
+                            modifier = Modifier.padding(start = 8.dp).size(24.dp),
                             color = TaviAccent,
                             strokeWidth = 2.dp
                         )

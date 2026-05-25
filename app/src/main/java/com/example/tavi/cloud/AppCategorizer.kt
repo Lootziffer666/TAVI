@@ -1,5 +1,6 @@
 package com.example.tavi.cloud
 
+import com.example.tavi.util.extractFirstJsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -19,7 +20,7 @@ class AppCategorizer(private val service: GeminiApiService, private val apiKey: 
                 contents = listOf(GeminiContent(parts = listOf(GeminiPart(prompt))))
             ))
             val text = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
-            val jsonStr = text.substringAfter("{").substringBeforeLast("}").let { "{$it}" }
+            val jsonStr = extractFirstJsonObject(text) ?: error("No JSON in categorizer response")
             val json = JSONObject(jsonStr)
             packageNames.associateWith { pkg -> json.optString(pkg, "Other") }
         }.getOrElse { emptyMap() }

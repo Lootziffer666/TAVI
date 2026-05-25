@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.IntSize
 import com.example.tavi.fossil.FossilDeckScreen
 import com.example.tavi.gesture.GestureIntent
 import com.example.tavi.gesture.TaviGestureRouter
@@ -85,7 +84,7 @@ fun TaviShellScreen(
                                 if (uiState.botWorkspacesEnabled && uiState.bots.isNotEmpty())
                                     pagerState.animateScrollToPage(2)
                             }
-                            GestureIntent.CollapseOrb, GestureIntent.Passthrough -> Unit
+                            GestureIntent.Passthrough -> Unit
                         }
                     }
                 }

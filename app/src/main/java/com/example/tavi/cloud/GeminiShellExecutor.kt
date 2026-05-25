@@ -1,5 +1,6 @@
 package com.example.tavi.cloud
 
+import com.example.tavi.util.extractFirstJsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -23,25 +24,5 @@ class GeminiShellExecutor(private val service: GeminiApiService, private val api
                 ?: error("No JSON object found in response")
             JSONObject(jsonString).getString("command")
         }
-    }
-
-    // Extracts the first top-level JSON object from arbitrary text by counting braces.
-    // Handles nested objects, multiple JSON-like structures, and markdown code fences.
-    private fun extractFirstJsonObject(text: String): String? {
-        var depth = 0
-        var start = -1
-        for (i in text.indices) {
-            when (text[i]) {
-                '{' -> {
-                    if (depth == 0) start = i
-                    depth++
-                }
-                '}' -> {
-                    depth--
-                    if (depth == 0 && start >= 0) return text.substring(start, i + 1)
-                }
-            }
-        }
-        return null
     }
 }

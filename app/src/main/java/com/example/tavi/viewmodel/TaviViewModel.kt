@@ -20,6 +20,9 @@ import com.example.tavi.warden.TaviWarden
 import com.example.tavi.workspace.BotInfo
 import com.example.tavi.workspace.BotRegistry
 import com.example.tavi.BuildConfig
+import com.example.tavi.receiver.GardenTendWorker
+import androidx.work.*
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -78,6 +81,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch { appScanner.syncInstalledApps() }
+        scheduleGardenTending(app)
         collectSensorData()
         collectGardenData()
         collectPreferences()
@@ -86,6 +90,14 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectWardenPrivateMode()
         collectSessionOnlyMode()
         initAIEngine()
+    }
+
+    private fun scheduleGardenTending(app: Application) {
+        val work = PeriodicWorkRequestBuilder<GardenTendWorker>(24, TimeUnit.HOURS)
+            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
+            .build()
+        WorkManager.getInstance(app)
+            .enqueueUniquePeriodicWork("gardenTend", ExistingPeriodicWorkPolicy.KEEP, work)
     }
 
     private fun collectSensorData() = viewModelScope.launch {
@@ -252,6 +264,12 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             taviAI.generate(query, ctx).collect { token -> buffer.append(token) }
             val response = actionsRouter.parseAndRoute(buffer.toString())
             if (!_state.value.isSessionOnlyMode) actionsRouter.execute(response)
+
+            // Persist scope tag when AI creates one (respects session-only mode)
+            if (response.action == AIActions.CREATE_SCOPE && !response.target.isNullOrBlank()) {
+                if (!_state.value.isSessionOnlyMode) prefs.setScopeTag(response.target)
+                _state.update { it.copy(currentScope = response.target) }
+            }
 
             // AI-generated shell commands go through the same risk gate as manual ! commands
             if (response.action == AIActions.EXECUTE_SHELL && !response.target.isNullOrBlank()) {
