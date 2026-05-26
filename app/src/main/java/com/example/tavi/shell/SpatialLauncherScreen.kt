@@ -14,11 +14,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.example.tavi.clipboard.ClipEntry
+import com.example.tavi.clipboard.ClipPanel
 import com.example.tavi.garden.GardenNode
 import com.example.tavi.sensor.TiltState
 import com.example.tavi.state.PendingAction
 import com.example.tavi.state.TaviState
 import com.example.tavi.ui.components.StateAnchor
+import com.example.tavi.workspace.BotInfo
 import com.example.tavi.ui.theme.TaviAccent
 import com.example.tavi.ui.theme.DepthMid
 
@@ -47,6 +50,11 @@ fun SpatialLauncherScreen(
     pendingAction: PendingAction? = null,
     onRiskConfirmed: () -> Unit = {},
     onRiskCancelled: () -> Unit = {},
+    clipHistory: List<ClipEntry> = emptyList(),
+    showClipPanel: Boolean = false,
+    bots: List<BotInfo> = emptyList(),
+    onClipSelected: (ClipEntry) -> Unit = {},
+    onClipHandoff: (botId: String, content: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -92,7 +100,20 @@ fun SpatialLauncherScreen(
             modifier = Modifier.align(Alignment.Center).zIndex(2f)
         )
 
-        // Layer 4: Scope chip strip — visible when scopes exist and orb is collapsed
+        // Layer 4a: Clipboard panel — slides up above orb when showClipPanel
+        ClipPanel(
+            clips = clipHistory,
+            bots = bots,
+            visible = showClipPanel,
+            onClipSelected = onClipSelected,
+            onHandoff = onClipHandoff,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(4f)
+                .padding(bottom = 88.dp)
+        )
+
+        // Layer 4b: Scope chip strip — visible when scopes exist and orb is collapsed
         if (recentScopes.isNotEmpty() && !isOrbExpanded) {
             LazyRow(
                 modifier = Modifier

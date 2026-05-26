@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tavi.ai.*
+import com.example.tavi.clipboard.ClipEntry
+import com.example.tavi.clipboard.ClipboardRepository
 import com.example.tavi.cloud.AppCategorizer
 import com.example.tavi.cloud.GeminiShellExecutor
 import com.example.tavi.cloud.RetrofitClient
@@ -49,7 +51,9 @@ data class TaviUiState(
     val moduleHealth: ModuleHealth = ModuleHealth(),
     val isSessionOnlyMode: Boolean = false,
     val categoryCache: Map<String, String> = emptyMap(),
-    val recentScopes: List<String> = emptyList()
+    val recentScopes: List<String> = emptyList(),
+    val clipHistory: List<ClipEntry> = emptyList(),
+    val showClipPanel: Boolean = false
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -68,6 +72,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private val actionsRouter = MobileActionsRouter(app, gardenEngine)
     private val intentRouter = IntentRouter(BotRegistry.names)
     private val selfHealEngine = SelfHealEngine()
+    private val clipboardRepo = ClipboardRepository(app, prefs)
 
     private val geminiApiKey = BuildConfig.GEMINI_API_KEY
         .takeIf { it.isNotBlank() && it != "placeholder" } ?: ""
@@ -108,6 +113,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectBotWorkspacesEnabled()
         collectWardenPrivateMode()
         collectSessionOnlyMode()
+        collectClipHistory()
         initAIEngine()
     }
 
@@ -221,6 +227,12 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun collectClipHistory() = viewModelScope.launch {
+        clipboardRepo.history.collect { clips ->
+            _state.update { it.copy(clipHistory = clips) }
+        }
+    }
+
     private fun initAIEngine() = viewModelScope.launch {
         prefs.aiModelPath.firstOrNull()?.let { path ->
             if (path.isNotBlank()) {
@@ -289,6 +301,9 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                     handleAIQuery("Adjust the launcher layout: ${result.prompt}")
                 }
                 is IntentRouterResult.HandoffToBot -> handleHandoff(result.botId, result.content)
+                IntentRouterResult.ShowClipboard -> {
+                    _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "", showClipPanel = true) }
+                }
             }
         }
     }
@@ -404,6 +419,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             val cm = getApplication<Application>()
                 .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("tavi-handoff", content))
+            val entry = ClipEntry(content, com.example.tavi.clipboard.ClipType.TEXT)
+            clipboardRepo.addToHistory(entry, persist = !_state.value.isSessionOnlyMode)
         }
         _state.update {
             it.copy(targetPage = 2 + botIdx, isThinking = false, isOrbExpanded = false, promptText = "")
@@ -470,6 +487,20 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onFossilRemove(node: GardenNode) = viewModelScope.launch {
         gardenEngine.markAsFossil(node.packageName)
+    }
+
+    fun onClipSelected(entry: ClipEntry) {
+        val cm = getApplication<Application>()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("tavi-clip", entry.content))
+        _state.update { it.copy(promptText = entry.content, showClipPanel = false, isOrbExpanded = true) }
+    }
+
+    fun onClipDismiss() = _state.update { it.copy(showClipPanel = false) }
+
+    fun onClipHandoff(botId: String, content: String) = viewModelScope.launch {
+        _state.update { it.copy(showClipPanel = false) }
+        handleHandoff(botId, content)
     }
 
     fun onScopeSelected(scope: String) = viewModelScope.launch {

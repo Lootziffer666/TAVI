@@ -32,5 +32,6 @@ class TaviWarden(private val prefs: TaviPreferences) {
         prefs.setShizukuEnabled(false)
         prefs.setCloudAiEnabled(false)
         prefs.setEmergencyOff(true)
+        prefs.clearClipHistory()
     }
 }

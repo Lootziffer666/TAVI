@@ -7,6 +7,7 @@ sealed class IntentRouterResult {
     data class BuildLayout(val prompt: String) : IntentRouterResult()
     data class OpenUrl(val url: String) : IntentRouterResult()
     data class HandoffToBot(val botId: String, val content: String) : IntentRouterResult()
+    object ShowClipboard : IntentRouterResult()
     object OpenSettings : IntentRouterResult()
 }
 
@@ -25,6 +26,9 @@ class IntentRouter(private val knownBotNames: Set<String>) {
             }
             trimmed.startsWith("/build") -> {
                 IntentRouterResult.BuildLayout(trimmed.removePrefix("/build").trim())
+            }
+            trimmed.equals("clip:", ignoreCase = true) || trimmed.startsWith("clip: ") -> {
+                IntentRouterResult.ShowClipboard
             }
             trimmed.startsWith(">") -> {
                 val rest = trimmed.removePrefix(">")

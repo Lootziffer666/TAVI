@@ -63,7 +63,7 @@ fun PromptOrb(
                     OutlinedTextField(
                         value = promptText,
                         onValueChange = onTextChanged,
-                        placeholder = { Text("? ask  ! act  /build", color = Color.Gray) },
+                        placeholder = { Text("? ask  ! act  /build  >bot", color = Color.Gray) },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(

@@ -128,7 +128,12 @@ fun TaviShellScreen(
                     currentScope = uiState.currentScope,
                     pendingAction = uiState.pendingAction,
                     onRiskConfirmed = viewModel::onRiskConfirmed,
-                    onRiskCancelled = viewModel::onRiskCancelled
+                    onRiskCancelled = viewModel::onRiskCancelled,
+                    clipHistory = uiState.clipHistory,
+                    showClipPanel = uiState.showClipPanel,
+                    bots = uiState.bots,
+                    onClipSelected = viewModel::onClipSelected,
+                    onClipHandoff = viewModel::onClipHandoff
                 )
                 else -> BotWorkspaceScreen(bot = uiState.bots[page - 2])
             }
