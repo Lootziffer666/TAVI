@@ -122,7 +122,10 @@ fun TaviShellScreen(
                     onNodeTap = viewModel::onNodeTap,
                     onNodeLongPress = viewModel::onNodeLongPress,
                     onWardenOpen = viewModel::onWardenToggle,
-                    onSelfHeal = viewModel::onSelfHealRequested
+                    onSelfHeal = viewModel::onSelfHealRequested,
+                    recentScopes = uiState.recentScopes,
+                    onScopeSelected = viewModel::onScopeSelected,
+                    currentScope = uiState.currentScope
                 )
                 else -> BotWorkspaceScreen(bot = uiState.bots[page - 2])
             }

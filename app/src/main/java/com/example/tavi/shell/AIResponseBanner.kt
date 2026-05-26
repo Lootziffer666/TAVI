@@ -1,14 +1,15 @@
 package com.example.tavi.shell
 
 import androidx.compose.animation.*
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.tavi.ui.theme.DepthMid
 import com.example.tavi.ui.theme.TaviAccent
@@ -33,14 +34,23 @@ fun AIResponseBanner(message: String?, modifier: Modifier = Modifier) {
         modifier = modifier
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clickable { visible = false },
             colors = CardDefaults.cardColors(containerColor = DepthMid)
         ) {
-            Text(
-                text = message ?: "",
-                color = TaviAccent,
-                modifier = Modifier.padding(12.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .heightIn(max = 200.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = message ?: "",
+                    color = TaviAccent,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
         }
     }
 }

@@ -3,15 +3,23 @@ package com.example.tavi.shell
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.example.tavi.garden.GardenNode
 import com.example.tavi.sensor.TiltState
 import com.example.tavi.state.TaviState
 import com.example.tavi.ui.components.StateAnchor
+import com.example.tavi.ui.theme.TaviAccent
+import com.example.tavi.ui.theme.DepthMid
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -32,6 +40,9 @@ fun SpatialLauncherScreen(
     onNodeLongPress: (GardenNode) -> Unit,
     onWardenOpen: () -> Unit,
     onSelfHeal: () -> Unit,
+    recentScopes: List<String> = emptyList(),
+    onScopeSelected: (String) -> Unit = {},
+    currentScope: String? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -77,7 +88,30 @@ fun SpatialLauncherScreen(
             modifier = Modifier.align(Alignment.Center).zIndex(2f)
         )
 
-        // Layer 4: Prompt orb (bottom center)
+        // Layer 4: Scope chip strip — visible when scopes exist and orb is collapsed
+        if (recentScopes.isNotEmpty() && !isOrbExpanded) {
+            LazyRow(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(4f)
+                    .padding(bottom = 96.dp, start = 8.dp, end = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(recentScopes) { scope ->
+                    FilterChip(
+                        selected = scope == currentScope,
+                        onClick = { onScopeSelected(scope) },
+                        label = { Text(scope) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = TaviAccent.copy(alpha = 0.2f),
+                            containerColor = DepthMid
+                        )
+                    )
+                }
+            }
+        }
+
+        // Layer 5: Prompt orb (bottom center)
         PromptOrb(
             isExpanded = isOrbExpanded,
             promptText = promptText,
@@ -85,7 +119,7 @@ fun SpatialLauncherScreen(
             onToggle = onOrbToggle,
             onTextChanged = onTextChanged,
             onSubmit = onPromptSubmit,
-            modifier = Modifier.align(Alignment.BottomCenter).zIndex(4f)
+            modifier = Modifier.align(Alignment.BottomCenter).zIndex(5f)
         )
     }
 }

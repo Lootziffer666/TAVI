@@ -43,6 +43,13 @@ fun FossilDeckScreen(
 ) {
     var currentIndex by remember { mutableIntStateOf(0) }
 
+    // Guard against list shrinking while deck is open (e.g. app uninstalled mid-session)
+    LaunchedEffect(candidates.size) {
+        if (candidates.isNotEmpty() && currentIndex >= candidates.size) {
+            currentIndex = candidates.size - 1
+        }
+    }
+
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
