@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.example.tavi.garden.GardenNode
 import com.example.tavi.sensor.TiltState
+import com.example.tavi.state.PendingAction
 import com.example.tavi.state.TaviState
 import com.example.tavi.ui.components.StateAnchor
 import com.example.tavi.ui.theme.TaviAccent
@@ -43,6 +44,9 @@ fun SpatialLauncherScreen(
     recentScopes: List<String> = emptyList(),
     onScopeSelected: (String) -> Unit = {},
     currentScope: String? = null,
+    pendingAction: PendingAction? = null,
+    onRiskConfirmed: () -> Unit = {},
+    onRiskCancelled: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -111,7 +115,20 @@ fun SpatialLauncherScreen(
             }
         }
 
-        // Layer 5: Prompt orb (bottom center)
+        // Layer 5: Risk preflight — shown over everything when a dangerous action is pending
+        if (pendingAction != null && taviState is TaviState.RiskDetected) {
+            ActionPreflightCard(
+                action = pendingAction,
+                onConfirm = onRiskConfirmed,
+                onCancel = onRiskCancelled,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(6f)
+                    .padding(bottom = 8.dp)
+            )
+        }
+
+        // Layer 6: Prompt orb (bottom center)
         PromptOrb(
             isExpanded = isOrbExpanded,
             promptText = promptText,
@@ -119,7 +136,7 @@ fun SpatialLauncherScreen(
             onToggle = onOrbToggle,
             onTextChanged = onTextChanged,
             onSubmit = onPromptSubmit,
-            modifier = Modifier.align(Alignment.BottomCenter).zIndex(5f)
+            modifier = Modifier.align(Alignment.BottomCenter).zIndex(7f)
         )
     }
 }

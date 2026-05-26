@@ -15,6 +15,7 @@ import com.example.tavi.garden.*
 import com.example.tavi.sensor.SpatialSensorManager
 import com.example.tavi.sensor.TiltState
 import com.example.tavi.shizuku.ShizukuManager
+import com.example.tavi.state.PendingAction
 import com.example.tavi.state.TaviEvent
 import com.example.tavi.state.TaviState
 import com.example.tavi.state.TaviStateReducer
@@ -42,7 +43,7 @@ data class TaviUiState(
     val bots: List<BotInfo> = BotRegistry.defaults,
     val fossilCandidates: List<GardenNode> = emptyList(),
     val targetPage: Int? = null,
-    val pendingShellCommand: String? = null,
+    val pendingAction: PendingAction? = null,
     val showWarden: Boolean = false,
     val botWorkspacesEnabled: Boolean = true,
     val moduleHealth: ModuleHealth = ModuleHealth(),
@@ -300,7 +301,23 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             val buffer = StringBuilder()
             taviAI.generate(query, ctx).collect { token -> buffer.append(token) }
             val response = actionsRouter.parseAndRoute(buffer.toString())
-            if (!_state.value.isSessionOnlyMode) actionsRouter.execute(response)
+
+            // DEMOTE_APP and PROMOTE_APP go through the risk preflight — skip actionsRouter.execute() for them
+            val routeThroughPreflight = response.action == AIActions.DEMOTE_APP || response.action == AIActions.PROMOTE_APP
+            if (!_state.value.isSessionOnlyMode && !routeThroughPreflight) actionsRouter.execute(response)
+
+            if (routeThroughPreflight && !response.target.isNullOrBlank()) {
+                val packageName = response.target
+                val allNodes = _state.value.foreground + _state.value.midground + _state.value.background
+                val label = allNodes.firstOrNull { it.packageName == packageName }?.label ?: packageName
+                val pending = if (response.action == AIActions.DEMOTE_APP)
+                    PendingAction.DemoteApp(packageName, label)
+                else
+                    PendingAction.PromoteApp(packageName, label)
+                _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "", pendingAction = pending) }
+                emitEvent(TaviEvent.RiskCommand("${response.action}: $label"))
+                return
+            }
 
             // Persist scope tag when AI creates one (respects session-only mode)
             if (response.action == AIActions.CREATE_SCOPE && !response.target.isNullOrBlank()) {
@@ -356,13 +373,19 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val cloudEnabled = warden.isCloudAiEnabled.firstOrNull() ?: false
-        val executableCommand = if (cloudEnabled && shellExecutor != null && looksLikeNaturalLanguage(command)) {
-            shellExecutor.buildCommand(command).getOrDefault(command)
+        val translated: String?
+        val executable: String
+        if (cloudEnabled && shellExecutor != null && looksLikeNaturalLanguage(command)) {
+            val result = shellExecutor.buildCommand(command)
+            translated = result.getOrNull()
+            executable = translated ?: command
         } else {
-            command
+            translated = null
+            executable = command
         }
-        _state.update { it.copy(isThinking = false, pendingShellCommand = executableCommand) }
-        emitEvent(TaviEvent.RiskCommand(executableCommand))
+        val pendingAction = PendingAction.ShellCommand(display = command, translated = translated, executable = executable)
+        _state.update { it.copy(isThinking = false, pendingAction = pendingAction) }
+        emitEvent(TaviEvent.RiskCommand(executable))
     }
 
     private suspend fun handleHandoff(botId: String, content: String) {
@@ -389,24 +412,40 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onRiskConfirmed() {
-        val cmd = _state.value.pendingShellCommand ?: return
+        val action = _state.value.pendingAction ?: return
         emitEvent(TaviEvent.UserConfirmed)
         viewModelScope.launch {
-            ShizukuManager.executeCommand(cmd).fold(
-                onSuccess = { output ->
-                    _state.update { it.copy(aiMessage = output.ifBlank { "Done." }) }
-                    emitEvent(TaviEvent.ExecutionSuccess)
-                },
-                onFailure = {
-                    emitEvent(TaviEvent.ExecutionFailed(it.message ?: "Unknown", "Try again or check Shizuku"))
+            when (action) {
+                is PendingAction.ShellCommand -> {
+                    ShizukuManager.executeCommand(action.executable).fold(
+                        onSuccess = { output ->
+                            _state.update { it.copy(aiMessage = output.ifBlank { "Done." }) }
+                            emitEvent(TaviEvent.ExecutionSuccess)
+                        },
+                        onFailure = {
+                            emitEvent(TaviEvent.ExecutionFailed(it.message ?: "Unknown", "Try again or check Shizuku"))
+                        }
+                    )
                 }
-            )
-            _state.update { it.copy(pendingShellCommand = null) }
+                is PendingAction.DemoteApp -> {
+                    gardenEngine.markAsFossil(action.packageName)
+                    emitEvent(TaviEvent.ExecutionSuccess)
+                }
+                is PendingAction.PromoteApp -> {
+                    gardenEngine.recordLaunch(action.packageName)
+                    emitEvent(TaviEvent.ExecutionSuccess)
+                }
+                is PendingAction.ScopeChange -> {
+                    onScopeSelected(action.to)
+                    emitEvent(TaviEvent.ExecutionSuccess)
+                }
+            }
+            _state.update { it.copy(pendingAction = null) }
         }
     }
 
     fun onRiskCancelled() {
-        _state.update { it.copy(pendingShellCommand = null) }
+        _state.update { it.copy(pendingAction = null) }
         emitEvent(TaviEvent.UserCancelled)
     }
 
