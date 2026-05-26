@@ -6,6 +6,7 @@
 | TV-002 | Stack Decision | Complete — Kotlin + Compose + KSP + Gradle 8.x (see STACK.md) |
 | TV-003 | Opus Product Planning Map | Complete — CLUSTER_MAP.md merged, 19 clusters defined |
 | TV-004 | First Prototype Cluster | Complete — branch `claude/intent-zen-integration-wL7tV` |
+| TV-005 | QoL Refinery + Clusters 15 / 1 / 5 | Complete — same branch, 4 commits |
 
 ## TV-004 Delivery Summary
 
@@ -48,3 +49,66 @@ Cherry-pick fusion of Zen (spatial model, MediaPipe Gemma, accelerometer paralla
 - m3: GeminiApiService — model ID fixed to `gemini-1.5-flash`
 - m4: WorkspaceRepository — implemented with Moshi JSON persistence
 - m5: Documentation — README.md updated, GATES.md updated, ARCHITECTURE.md created
+
+---
+
+## TV-005 Delivery Summary
+
+Branch: `claude/intent-zen-integration-wL7tV` (4 commits on top of TV-004)
+
+Goal: eliminate "stated but never proven" — every declared feature now runs end-to-end. Plus three new clusters in dependency order (15 → 1 → 5).
+
+### Commit 1 — Refinery: dead stubs wired
+
+| Fix | Detail |
+|---|---|
+| GeminiShellExecutor | Now instantiated in TaviViewModel; NL→shell translation active when API key present |
+| AppCategorizer | Now instantiated; lazily loads categories on first FossilDeck appearance; shown in card subtitle |
+| BuildLayout | Routes through `handleAIQuery()` instead of echo-only |
+| SIMPLIFY_VIEW / EXPAND_VIEW | Update `_maxFocusItems` StateFlow + persist to DataStore; `flatMapLatest` re-subscribes live |
+| GardenTendWorker | Scheduled from `TaviViewModel.init` (not only on boot); LINEAR 15-min backoff in both ViewModel and BootReceiver |
+| HandoffToBot | `IntentRouter` routes `>botname: content` prefix; copies content to system clipboard and navigates |
+| recentScopes | `TaviPreferences`: `RECENT_SCOPES_JSON` key, `recentScopes` flow, `addRecentScope()` (max 5, deduplicated) |
+| RECORD_AUDIO | Orphan permission removed from AndroidManifest |
+
+### Commit 2 — QoL improvements
+
+| Fix | Detail |
+|---|---|
+| AIResponseBanner | Tap-to-dismiss; content scrollable up to 200dp (shell output can be 20+ lines) |
+| FossilDeckScreen | `LaunchedEffect(candidates.size)` prevents out-of-bounds crash when list shrinks during active deck session |
+| Scope chip strip | `FilterChip` LazyRow between FocusZone and PromptOrb; visible when scopes exist and orb is collapsed; tap switches scope without opening orb |
+
+### Commit 3 — Cluster 15: Safe Action Buffer
+
+| Cluster | Key Files | Status |
+|---|---|---|
+| 15 — Safe Action Buffer | `state/PendingAction.kt`, `shell/ActionPreflightCard.kt` | Complete |
+
+- `PendingAction` sealed class: `ShellCommand(display, translated, executable)`, `DemoteApp`, `PromoteApp`, `ScopeChange`
+- `pendingShellCommand: String?` replaced with `pendingAction: PendingAction?` throughout
+- AI `DEMOTE_APP` / `PROMOTE_APP` now route through preflight (not silently executed)
+- `ActionPreflightCard`: type icon + translated/display command + reversibility hint + Cancel/Execute buttons
+- `SpatialLauncherScreen`: preflight shown at zIndex 6 when `RiskDetected` + `pendingAction != null`
+
+### Commit 4 — Clusters 1 + 5: Clipboard + Handoffs
+
+| Cluster | Key Files | Status |
+|---|---|---|
+| 1 — Clipboard / Transfer | `clipboard/ClipEntry.kt`, `clipboard/ClipboardRepository.kt`, `clipboard/ClipPanel.kt` | Complete |
+| 5 — Handoffs | `ai/IntentRouter.kt` (`>` prefix), `viewmodel/TaviViewModel.kt` `handleHandoff()` | Complete |
+
+- `ClipboardRepository`: reads system clipboard, auto-detects type (URL/PHONE/CODE/TEXT), dual DataStore + session-memory history (max 10)
+- `TaviPreferences`: `CLIP_HISTORY_JSON`, `addClipEntry()`, `clearClipHistory()`
+- `IntentRouter`: `ShowClipboard` result + `clip:` routing
+- `ClipPanel`: animated chip row above PromptOrb; URL clips show per-bot send icons for direct handoff
+- `TaviWarden.triggerEmergencyOff()` clears clip history
+- PromptOrb placeholder updated to `? ask  ! act  /build  >bot`
+
+### Hard constraints re-verified
+
+- No AccessibilityService — unchanged
+- Preflight visible before every risk action — no silent execution
+- Clipboard history: in-memory only in private/session-only mode; cleared on emergency off
+- Warden gates respected for all new features (botWorkspacesEnabled, isSessionOnlyMode)
+- State Grammar: `RiskDetected` drives `ActionPreflightCard` anchor; `Blocked` on empty clipboard / unknown bot

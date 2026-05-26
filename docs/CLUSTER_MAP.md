@@ -1,7 +1,7 @@
 # TAVI Cluster Map — 19 Cluster mit Slot Contracts
 
-**Stand:** 2026-05-24 (aktualisiert nach TV-004 Delivery)
-**Status:** Cluster 11, 12, 13, 14, 17, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
+**Stand:** 2026-05-26 (aktualisiert nach TV-005 Delivery)
+**Status:** Cluster 1, 5, 11, 12, 13, 14, 15, 17, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
 **Schema:** Jeder Cluster folgt dem Slot Contract aus `CONCEPT_CONTRACT.md` (Name, Purpose, User State, Input, Output, Visible Surface, Failure Behavior) plus Roadmap-Status, Dependencies und MVP-Cut-Empfehlung.
 
 ---
@@ -10,13 +10,16 @@
 
 | Cluster | Name | Status |
 |---|---|---|
-| 11 | App Fossil Finder | **Implemented** — FossilDeckScreen + GardenEngine.markAsFossil() |
+| 1 | Clipboard / Transfer Layer | **Implemented** — ClipboardRepository + ClipPanel + TaviPreferences keys |
+| 5 | Handoffs | **Implemented** — IntentRouter `>` prefix + handleHandoff() + ClipPanel bot icons |
+| 11 | App Fossil Finder | **Implemented** — FossilDeckScreen + GardenEngine.markAsFossil() + AppCategorizer |
 | 12 | Zen Shell / Launcher Rooms | **Implemented** — GardenCanvas + FocusZone + SpatialLauncherScreen |
 | 13 | Overlay / Handles / Gesture Edge | **Implemented** — TaviGestureRouter + SwipeEngine |
 | 14 | State Grammar / One Anchor | **Implemented** — TaviState + TaviStateReducer + StateAnchor |
-| 17 | AI / Tool Handoff | **Implemented** — LocalAIEngine + TaviAIEngine + IntentRouter |
+| 15 | Safe Action Buffer | **Implemented** — PendingAction + ActionPreflightCard + preflight routing |
+| 17 | AI / Tool Handoff | **Implemented** — LocalAIEngine + TaviAIEngine + IntentRouter + GeminiShellExecutor |
 | 19 | Privacy / Control / Warden | **Implemented** — TaviWarden + WardenScreen |
-| 1–10, 15–16, 18 | Weitere Cluster | Roadmap |
+| 2–4, 6–10, 16, 18 | Weitere Cluster | Roadmap |
 
 ---
 
@@ -25,12 +28,13 @@
 **Prototype now (12):** Cluster 1, 2, 3, 4, 5, 8, 9, 11, 14, 15, 18, 19
 **Roadmap (7):** Cluster 6, 7, 10, 12, 13, 16, 17
 **Implementiert (TV-004):** Cluster 11, 12, 13, 14, 17, 19
+**Implementiert (TV-005):** Cluster 1, 5, 15 — plus QoL-Verbesserungen, Refinery
 
 **Empfohlener MVP-Schnitt (5 Cluster):** 1 Clipboard, 2 Snippets, 5 Handoffs, 14 State Grammar, 19 Privacy/Warden. Alles andere ist Phase 2+.
 
 ---
 
-## Cluster 1 — Clipboard / Transfer Layer
+## Cluster 1 — Clipboard / Transfer Layer ✓ Implemented
 
 | Feld | Inhalt |
 |---|---|
@@ -39,13 +43,15 @@
 | **User State** | „Ich habe etwas und will es weiterverwenden" |
 | **Input** | Text, Link, Datei, Bild, Screenshot, Markdown |
 | **Output** | Clipboard-Inhalt, Datei, Verweis, Status |
-| **Visible Surface** | kleines Panel, Share Target, später Launcher-Fläche |
-| **Failure Behavior** | nichts kürzen; klar sagen, was passiert ist |
-| **Roadmap** | Prototype now |
+| **Visible Surface** | ClipPanel (AnimatedVisibility LazyRow über PromptOrb) |
+| **Failure Behavior** | `TaviState.Blocked("Clipboard empty")` bei leerem Clipboard; Private Mode: kein DataStore-Write |
+| **Roadmap** | **Implemented (TV-005)** |
 | **Dependencies** | keine (Foundation) |
 | **MVP-Cut** | enthalten — Foundation für Cluster 2, 3, 4, 5 |
 
-**Features (kondensiert aus zen.md):** Clipboard+, Clipboard-Historie, große Texte vollständig halten, Dateiverweis statt Volltext, Clipboard-Status (Text/Bild/Datei/Link/Markdown/Prompt), Private Mode, Cleaner, Pinboard.
+**Implemented:** `ClipEntry` + `ClipType` (TEXT/URL/PHONE/CODE/OTHER), `ClipboardRepository` (DataStore + session-memory dual history, max 10, auto-detect type), `ClipPanel` composable (chips + URL-Bot-Handoff-Icons), `TaviPreferences.CLIP_HISTORY_JSON`, `IntentRouter.ShowClipboard` + `clip:` prefix, `TaviWarden.triggerEmergencyOff()` löscht History.
+
+**Noch nicht implementiert (Phase 2):** Datei- und Bild-Clipboard, Share Target, Pinboard.
 
 ---
 
@@ -106,22 +112,24 @@
 
 ---
 
-## Cluster 5 — Handoffs
+## Cluster 5 — Handoffs ✓ Implemented
 
 | Feld | Inhalt |
 |---|---|
 | **Name** | Handoff Layer |
 | **Purpose** | Zustand an das richtige Werkzeug übergeben |
 | **User State** | „Ich will nicht App suchen, sondern Ziel erreichen" |
-| **Input** | Text, Bild, Datei, Link, Prompt |
-| **Output** | Übergabe an App / Tool / Modell / Speicherort |
-| **Visible Surface** | Handoff-Auswahl, Share Target |
-| **Failure Behavior** | Inhalt bleibt erhalten, alternative Übergabe anbieten |
-| **Roadmap** | Prototype now |
+| **Input** | Text, Link, Prompt — via `>botname: content` Syntax im PromptOrb |
+| **Output** | Inhalt in System-Clipboard kopiert + Navigation zur Bot-Workspace-Seite |
+| **Visible Surface** | PromptOrb hint `>bot`; ClipPanel zeigt Send-Icons für URL-Clips |
+| **Failure Behavior** | `TaviState.Blocked("Bot workspaces are off")` / `Blocked("Unknown bot: X")`; Inhalt bleibt in Clipboard |
+| **Roadmap** | **Implemented (TV-005)** |
 | **Dependencies** | Cluster 1 (Clipboard) |
 | **MVP-Cut** | enthalten — zentrale Reibungsreduktion |
 
-**Features:** Text an ChatGPT/Claude/Gemini, Prompt an Hyperagent, Datei an Ziel-App, Adresse an Maps/CatchIt, Screenshot an OCR, Fehler an Suche, Code an Agent, Markdown an Speicherort, Link an Leseliste, Text als Snippet speichern.
+**Implemented:** `IntentRouter.HandoffToBot(botId, content)` + `>` prefix-Routing, `TaviViewModel.handleHandoff()` (Clipboard-Copy + Bot-Navigation + History-Eintrag), ClipPanel URL-Clips mit per-Bot-Send-Icons, `onClipHandoff()` Funktion, PromptOrb Placeholder-Update.
+
+**Noch nicht implementiert (Phase 2):** Datei-Handoff, Share Target, Adresse → Maps, Code → Agent.
 
 ---
 
@@ -302,22 +310,24 @@
 
 ---
 
-## Cluster 15 — Safe Action Buffer
+## Cluster 15 — Safe Action Buffer ✓ Implemented
 
 | Feld | Inhalt |
 |---|---|
 | **Name** | Safe Action Buffer |
 | **Purpose** | irreversible oder riskante Aktionen prüfbar machen |
-| **User State** | „Das könnte Folgen haben" |
-| **Input** | senden, löschen, kaufen, posten, installieren, Agent starten |
-| **Output** | Entwurf, Prüfung, Ausführung, Abbruch |
-| **Visible Surface** | Preflight, Review, Capsule |
-| **Failure Behavior** | letzter sicherer Stand bleibt erhalten |
-| **Roadmap** | Prototype now / Roadmap |
+| **User State** | „Das könnte Folgen haben — lass mich genau sehen, was passiert" |
+| **Input** | Shell-Kommando, App-Remove (AI DEMOTE_APP), App-Pin (AI PROMOTE_APP), Scope-Wechsel |
+| **Output** | `ActionPreflightCard`: Typ-Icon + Kommando (NL-übersetzt wenn verfügbar) + Reversibilität + Cancel/Execute |
+| **Visible Surface** | Full-width Card-Overlay am unteren Rand von `SpatialLauncherScreen` im `RiskDetected`-Zustand |
+| **Failure Behavior** | Bei Execution-Fehler → `TaviState.Failed`; Action gecancelt, State zurück auf Idle |
+| **Roadmap** | **Implemented (TV-005)** |
 | **Dependencies** | Cluster 14 (State Grammar), Cluster 19 (Privacy/Warden) |
-| **MVP-Cut** | reduzierte Variante im MVP — nur für AI-/Agent-Aktionen |
+| **MVP-Cut** | enthalten |
 
-**Features:** riskante Aktionen parken, Entwurf → Prüfung → Ausführung, Before/After Review, Permission Mirror, Failure Explainer, Blast-Radius Control, Work Capsule, Agent Budget Governor.
+**Implemented:** `PendingAction` sealed class (`ShellCommand(display, translated, executable)` / `DemoteApp` / `PromoteApp` / `ScopeChange`), `ActionPreflightCard` Composable, `pendingShellCommand: String?` → `pendingAction: PendingAction?` in TaviUiState, AI `DEMOTE_APP`/`PROMOTE_APP` durch Preflight geroutet (nicht mehr silent), `onRiskConfirmed()` pattern-matched auf Typ.
+
+**Noch nicht implementiert (Phase 2):** Before/After Review, Blast-Radius-Schätzung, Agent Budget Governor.
 
 **Verbindung zu ANVIL:** Strukturell identisch zu ANVILs Forge Patch-First Loop (Plan → Patch → Diff → Gate → Build → Test → Artifact). Pattern teilen, Code nicht.
 

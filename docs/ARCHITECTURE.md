@@ -20,10 +20,14 @@ app/src/main/java/com/example/tavi/
 │                             RiskDetected/ActNow/Blocked/Failed/Private/Fallback)
 │     TaviEvent.kt         — Input events driving state transitions
 │     TaviStateReducer.kt  — Pure function: reduce(TaviState, TaviEvent) → TaviState
+│     PendingAction.kt     — Cluster 15. Sealed: ShellCommand(display, translated, executable)
+│                             / DemoteApp(pkg, label) / PromoteApp(pkg, label) / ScopeChange(from, to)
 │
 ├── viewmodel/
 │     TaviViewModel.kt     — AndroidViewModel. Single source of truth (TaviUiState).
-│                             Collects: sensor, garden layers, preferences, bots.
+│                             Collects: sensor, garden layers, preferences, bots, clipHistory.
+│                             _maxFocusItems: MutableStateFlow<Int> + flatMapLatest for live focus limit.
+│                             Optional cloud modules: shellExecutor, appCategorizer (null when no API key).
 │                             Exposes: warden (public) for WardenScreen wiring.
 │
 ├── garden/                  FROM ZEN — unchanged
@@ -41,12 +45,18 @@ app/src/main/java/com/example/tavi/
 │                             shifts with tilt), polygon nodes at 3 depth scales
 │     FocusZone.kt         — Max 5 nodes, 8-sec breath ring animation, AsyncImage icons,
 │                             long-press = spatial anchor toggle
-│     PromptOrb.kt         — Pulsing FAB (2800ms scale), expandable TextField, isThinking spinner
-│     AIResponseBanner.kt  — Ephemeral top banner, auto-dismisses after 4 seconds
+│     PromptOrb.kt         — Pulsing FAB (2800ms scale), expandable TextField, isThinking spinner.
+│                             Placeholder: "? ask  ! act  /build  >bot"
+│     AIResponseBanner.kt  — Ephemeral top banner. Tap-to-dismiss. Max 200dp scrollable
+│                             (handles multi-line shell output). Auto-dismisses after 4 seconds.
+│     ActionPreflightCard.kt — Cluster 15. Card shown when RiskDetected + pendingAction != null.
+│                               Type icon (Warning) + command line (translated form when available)
+│                               + reversibility hint + Cancel/Execute buttons.
 │     StateAnchor.kt       — Single chip: maps TaviState → public-safe label + color.
 │                             Long-press on chip → opens Warden
-│     SpatialLauncherScreen.kt  — Z-stack: Canvas(0) + StateAnchor(3) + Banner(2)
-│                                  + FocusZone(2) + PromptOrb(4).
+│     SpatialLauncherScreen.kt  — Z-stack: Canvas(0) + StateAnchor(3) + Banner(2) + FocusZone(2)
+│                                  + ClipPanel(4) + ScopeChips(4) + PreflightCard(6) + PromptOrb(7).
+│                                  Scope chips: FilterChip LazyRow, visible when recentScopes non-empty + orb collapsed.
 │                                  graphicsLayer{ rotationX/Y = tilt * 6f, camera 12f }
 │                                  combinedClickable(onLongClick = onWardenOpen) on root Box
 │     TaviShellScreen.kt   — HorizontalPager(2+bots pages): FossilDeck|Spatial|BotWorkspaces.
@@ -54,8 +64,17 @@ app/src/main/java/com/example/tavi/
 │                             LaunchedEffect(targetPage) for bot navigation.
 │                             WardenScreen overlay when uiState.showWarden = true.
 │
+├── clipboard/               Cluster 1 — Clipboard / Transfer Layer
+│     ClipEntry.kt         — data class(content, type, timestamp). ClipType: TEXT/URL/PHONE/CODE/OTHER
+│     ClipboardRepository.kt — read() from system ClipboardManager. history: Flow<List<ClipEntry>>
+│                               combines DataStore (persisted) + _sessionHistory (in-memory, private mode).
+│                               addToHistory(entry, persist). clearHistory() on emergency off.
+│                               Auto-detects type: URL regex, phone regex, code heuristic.
+│     ClipPanel.kt         — AnimatedVisibility slide-in from bottom. LazyRow SuggestionChips (last 5,
+│                             30-char truncated). URL clips show per-bot IconButtons for direct handoff.
+│
 ├── gesture/                 Cluster 13 — no AccessibilityService
-│     GestureIntent.kt     — Sealed: ExpandOrb/CollapseOrb/NavigatePage(delta)/
+│     GestureIntent.kt     — Sealed: ExpandOrb/NavigatePage(delta)/
 │                             OpenFossilDeck/OpenBotWorkspaces/Passthrough
 │     EdgeZoneConfig.kt    — EDGE_FRACTION=0.12f, velocity threshold=300f, distance=80f
 │     TaviGestureRouter.kt — onDragStart/onDrag/onDragEnd → GestureIntent.
@@ -83,8 +102,10 @@ app/src/main/java/com/example/tavi/
 │                               Routes: promote_app/demote_app/anchor/narrate → gardenEngine calls.
 │     IntentRouter.kt      — Prefix routing:
 │                             ?<query> → QueryAI or NavigateBot (if matches bot name)
-│                             !<cmd>  → ShellCommand
-│                             /build  → BuildLayout
+│                             !<cmd>  → ShellCommand (→ NL translation if cloud AI on)
+│                             /build  → BuildLayout (→ routed through handleAIQuery)
+│                             >bot: content → HandoffToBot(botId, content)
+│                             clip:   → ShowClipboard
 │                             http(s) → OpenUrl
 │                             settings→ OpenSettings
 │                             else    → QueryAI
@@ -94,14 +115,18 @@ app/src/main/java/com/example/tavi/
 │     GeminiApiService.kt  — FROM INTENT. Retrofit @POST gemini-1.5-flash:generateContent.
 │                             Moshi-annotated request/response models.
 │     RetrofitClient.kt    — OkHttp + Moshi + Retrofit singleton.
-│     AppCategorizer.kt    — FROM INTENT. Gemini-powered app category grouping.
-│     GeminiShellExecutor.kt — NL → shell command via Gemini. Returns Result<String>.
+│     AppCategorizer.kt    — Gemini-powered app category grouping. Instantiated in TaviViewModel
+│                             when geminiApiKey non-blank; lazily called on first fossil appearance.
+│     GeminiShellExecutor.kt — NL → shell command via Gemini. Instantiated when geminiApiKey
+│                               non-blank. Called in handleShellCommand() via looksLikeNaturalLanguage().
 │
 ├── fossil/                  Cluster 11 — FROM INTENT (rewritten)
 │     FossilDeckScreen.kt  — Tinder-style card stack. Card + graphicsLayer(rotationZ, scaleX/Y).
 │                             AsyncImage for app icons. stackOffset depth effect (3 cards).
 │                             Swipe left → onRemove (markAsFossil + system uninstall dialog).
 │                             Swipe right → onKeep (recordLaunch → affinity boost).
+│                             categoryCache shown in subtitle: "X launches · STAGE · Category".
+│                             LaunchedEffect(candidates.size) safety reset prevents OOB.
 │
 ├── workspace/
 │     BotInfo.kt           — data class(id, name, url) + BotRegistry.defaults (8 bots)
@@ -133,9 +158,15 @@ app/src/main/java/com/example/tavi/
 │                             isSpatiallyAnchored, scopeTag, fossilStatus, animationPhaseOffset
 │     AppNodeDao.kt        — getAllNodes, getForeground/Mid/Background/FossilCandidates (Flows),
 │                             recordLaunch, updateFossilStatus, upsert, delete
-│     TaviPreferences.kt   — DataStore: maxFocusItems, reduceMotion, scopeTag, aiModelPath,
+│     TaviPreferences.kt   — DataStore keys: maxFocusItems, reduceMotion, scopeTag, aiModelPath,
 │                             wardenEmergencyOff, privateModeEnabled, shizukuEnabled,
-│                             botWorkspacesEnabled, cloudAiEnabled, taviWorkspacesJson
+│                             botWorkspacesEnabled, cloudAiEnabled, taviWorkspacesJson,
+│                             sessionOnlyMode, RECENT_SCOPES_JSON (max 5, deduped),
+│                             CLIP_HISTORY_JSON (max 10 ClipEntry objects as JSON array)
+│
+├── util/
+│     JsonUtils.kt          — extractFirstJsonObject(text): String? via brace-counting.
+│                             Shared by AppCategorizer, GeminiShellExecutor, MobileActionsRouter.
 │
 └── ui/theme/                FLUBBER design language
       Color.kt             — SpaceBlack=#050810, SpaceNavy=#0D1117, TaviAccent=#00BCD4,
@@ -160,15 +191,22 @@ app/src/main/java/com/example/tavi/
 
 ### Seam 3: LocalAIEngine (primary) ↔ GeminiAPI (fallback)
 
-`TaviAIEngine` chains: LocalAIEngine (streaming tokens via MediaPipe Proxy) → Gemini cloud (when `isCloudAiEnabled` + `geminiApiKey` non-blank) → `ruleBasedResponse()` (always available). `IntentRouter` routes prefixes before AI dispatch. `MobileActionsRouter` parses the response and routes `promote_app`/`demote_app` back into `GardenEngine`.
+`TaviAIEngine` chains: LocalAIEngine (streaming tokens via MediaPipe Proxy) → Gemini cloud (when `isCloudAiEnabled` + `geminiApiKey` non-blank) → `ruleBasedResponse()` (always available). `IntentRouter` routes prefixes before AI dispatch. `MobileActionsRouter` parses the response; `DEMOTE_APP`/`PROMOTE_APP` are intercepted in `TaviViewModel.handleAIQuery()` and routed through `ActionPreflightCard` before execution.
+
+`GeminiShellExecutor` translates natural-language `!` commands (e.g. `! turn off wifi`) to shell commands (`svc wifi disable`) when cloud AI is enabled and `looksLikeNaturalLanguage()` returns true. The translated form is shown in `ActionPreflightCard` alongside the original input.
 
 ### Seam 4: Warden ↔ All gated features
 
 `TaviWarden` wraps every risky capability:
-- `isShizukuEnabled` → gates `!cmd` shell dispatch in `TaviViewModel.handleShellCommand()`
-- `isCloudAiEnabled` → gates Gemini cloud calls in `TaviAIEngine`
+- `isShizukuEnabled` → gates `!cmd` shell dispatch; shell goes through `ActionPreflightCard` first
+- `isCloudAiEnabled` → gates Gemini cloud calls in `TaviAIEngine` and NL→shell translation
 - `isPrivateMode` → blocks DataStore writes and cloud calls
-- `isEmergencyOff` → triggered by Emergency button, disables all power adapters at once
+- `isEmergencyOff` → triggered by Emergency button, disables all power adapters + clears clip history
+- `isSessionOnlyMode` → SIMPLIFY_VIEW / EXPAND_VIEW / scope tags / clip entries not persisted to DataStore
+
+### Seam 5: Clipboard ↔ Handoffs ↔ Bot Workspaces
+
+`ClipboardRepository` is the shared content bus for Clusters 1 and 5. `handleHandoff()` copies content to system clipboard (so user can paste into bot WebView), adds it to clip history (in-memory when session-only mode), then navigates `HorizontalPager` to the target bot page. `ClipPanel` surfaces the history and provides per-bot send icons on URL-type clips. Emergency off clears clip history at the `TaviPreferences` layer.
 
 ---
 

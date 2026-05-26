@@ -49,16 +49,26 @@ Vollständige Architektur: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 app/src/main/java/com/example/tavi/
 ├── MainActivity.kt              Entry: full immersion, HOME launcher, no back
 ├── state/                       State Grammar (9 Zustände, pure reducer)
+│   ├── TaviState.kt             9 sealed states
+│   ├── TaviStateReducer.kt      Pure reducer
+│   └── PendingAction.kt         Cluster 15 — ShellCommand / DemoteApp / PromoteApp / ScopeChange
 ├── garden/                      Räumliches Modell (von Zen)
 │   ├── GardenEngine.kt          Affinity-Scoring: 40% Frequenz + 40% Aktualität + 20% User
 │   ├── GardenNode.kt            App-Repräsentation mit Tiefenlage + GrowthStage
-│   └── GardenRepository.kt      Flow-basierte DAO-Brücke
+│   └── GardenRepository.kt      Flow-basierte DAO-Brücke; foregroundNodes(limit) für reaktive Anpassung
 ├── shell/                       UI-Schicht
 │   ├── GardenCanvas.kt          3D-Voxel-Grid + Polygon-Knoten (Compose Canvas)
 │   ├── FocusZone.kt             Max 5 Nodes + Atemring (8-Sek-Animation)
-│   ├── PromptOrb.kt             Pulsierender AI-Eingabe-Button
-│   ├── SpatialLauncherScreen.kt Z-Stack: Canvas + FocusZone + Orb + StateAnchor
+│   ├── PromptOrb.kt             Pulsierender AI-Eingabe-Button; Placeholder: ? ask ! act /build >bot
+│   ├── AIResponseBanner.kt      Ephemeral Banner; tap-to-dismiss; scrollbar für Shell-Output
+│   ├── ActionPreflightCard.kt   Cluster 15 — Preflight-Card im RiskDetected-Zustand
+│   ├── SpatialLauncherScreen.kt Z-Stack: Canvas(0) + StateAnchor(3) + ClipPanel(4) + ScopeChips(4)
+│   │                             + PreflightCard(6) + PromptOrb(7)
 │   └── TaviShellScreen.kt       HorizontalPager + Gesture-Routing + Warden-Overlay
+├── clipboard/                   Cluster 1 — Clipboard / Transfer Layer
+│   ├── ClipEntry.kt             data class + ClipType (TEXT/URL/PHONE/CODE/OTHER)
+│   ├── ClipboardRepository.kt   DataStore + session-memory; auto-detects type; max 10 Einträge
+│   └── ClipPanel.kt             AnimatedVisibility LazyRow; URL-Clips mit Bot-Send-Icons
 ├── gesture/                     Cluster 13 — ohne AccessibilityService
 │   ├── TaviGestureRouter.kt     Edge-Zonen (12% Ränder) → GestureIntent
 │   └── SwipeEngine.kt           Tinder-Karten-Physik (Animatable + detectDragGestures)
@@ -66,16 +76,20 @@ app/src/main/java/com/example/tavi/
 ├── ai/                          AI-Schicht
 │   ├── LocalAIEngine.kt         MediaPipe Gemma (primär, streaming via Proxy)
 │   ├── TaviAIEngine.kt          Orchestrator: Local → Cloud Fallback → Rule-Based
-│   ├── IntentRouter.kt          Prefix-Routing: ? / ! / /build / http / settings
-│   └── MobileActionsRouter.kt   JSON → promote_app / demote_app / narrate
+│   ├── IntentRouter.kt          Prefix-Routing: ? / ! / /build / >bot / clip: / http / settings
+│   └── MobileActionsRouter.kt   JSON → promote_app / demote_app / narrate (DEMOTE/PROMOTE → Preflight)
 ├── cloud/                       Gemini API (Retrofit + Moshi, cloud fallback)
-├── fossil/                      Cluster 11 — FossilDeckScreen (Tinder-Karten)
+│   ├── GeminiShellExecutor.kt   NL → Shell-Kommando-Übersetzung (aktiv wenn API-Key vorhanden)
+│   └── AppCategorizer.kt        App-Kategorisierung für FossilDeck (aktiv wenn API-Key vorhanden)
+├── fossil/                      Cluster 11 — FossilDeckScreen (Tinder-Karten) + AppCategorizer
 ├── workspace/                   Bot Workspaces (ChatGPT, Claude, Gemini, ...)
 ├── warden/                      Cluster 19 — Privacy & Control
-│   ├── TaviWarden.kt            Logic: private mode, Shizuku, cloud AI, emergency off
+│   ├── TaviWarden.kt            Logic: private mode, Shizuku, cloud AI, emergency off + Clip-History-Clear
 │   └── WardenScreen.kt          UI: Toggle-Rows + Emergency-Off-Button
 ├── shizuku/                     Optional power adapter für !-Kommandos
 ├── data/                        Room DB + DataStore Preferences
+├── util/
+│   └── JsonUtils.kt             extractFirstJsonObject() — geteilt von AppCategorizer, GeminiShellExecutor, MobileActionsRouter
 └── ui/theme/                    FLUBBER Design Language
     ├── Color.kt                 SpaceBlack / TaviAccent / BreathBlue / RiskRed / ...
     └── Type.kt                  Lilita One / Barlow / JetBrains Mono (Google Fonts)
@@ -100,14 +114,17 @@ Linke Kante → FossilDeck | Rechte Kante → BotWorkspaces | Unten/Oben → Pro
 User-Eingabe
     ↓
 IntentRouter (Prefix-Routing)
-    ├── ?query  → TaviAIEngine
-    │               ├── LocalAIEngine (Gemma via MediaPipe, streaming Tokens)
-    │               ├── Cloud fallback (Gemini 1.5 Flash, wenn Gemma unavailable)
-    │               └── Rule-based fallback (immer verfügbar, kein Netz nötig)
-    ├── !cmd    → ShizukuManager (nur wenn Warden: Shizuku enabled)
-    ├── /build  → BuildLayout prompt
-    ├── http… → Intent.ACTION_VIEW
-    └── settings → Settings.ACTION_SETTINGS
+    ├── ?query     → TaviAIEngine
+    │                   ├── LocalAIEngine (Gemma via MediaPipe, streaming Tokens)
+    │                   ├── Cloud fallback (Gemini 1.5 Flash, wenn Gemma unavailable)
+    │                   └── Rule-based fallback (immer verfügbar, kein Netz nötig)
+    ├── !cmd       → GeminiShellExecutor (NL→Shell wenn Cloud AI on + natürliche Sprache erkannt)
+    │                   → ShizukuManager via ActionPreflightCard (RiskDetected gate)
+    ├── /build     → handleAIQuery("Adjust the launcher layout: …") → TaviAIEngine
+    ├── >bot: txt  → handleHandoff() → Clipboard + Bot-Navigation (Cluster 5)
+    ├── clip:      → ClipPanel öffnen (Cluster 1)
+    ├── http…      → Intent.ACTION_VIEW
+    └── settings   → Settings.ACTION_SETTINGS
 ```
 
 ### State Grammar
@@ -150,13 +167,16 @@ Alle Implementierungen: `claude/intent-zen-integration-wL7tV`
 
 | # | Cluster | Status |
 |---|---|---|
-| 11 | App Fossil Finder | Implemented — FossilDeckScreen + GardenEngine.markAsFossil() |
+| 1 | Clipboard / Transfer Layer | Implemented — ClipboardRepository + ClipPanel + `clip:` routing |
+| 5 | Handoffs | Implemented — `>bot: content` IntentRouter + handleHandoff() + ClipPanel bot icons |
+| 11 | App Fossil Finder | Implemented — FossilDeckScreen + GardenEngine.markAsFossil() + AppCategorizer |
 | 12 | Zen Shell / Launcher Rooms | Implemented — GardenCanvas + FocusZone + SpatialLauncherScreen |
 | 13 | Overlay / Handles / Gesture Edge | Implemented — TaviGestureRouter + SwipeEngine |
 | 14 | State Grammar / One Anchor | Implemented — TaviState + TaviStateReducer + StateAnchor |
-| 17 | AI / Tool Handoff | Implemented — LocalAIEngine + TaviAIEngine + IntentRouter |
+| 15 | Safe Action Buffer | Implemented — PendingAction + ActionPreflightCard; all risk actions through preflight |
+| 17 | AI / Tool Handoff | Implemented — LocalAIEngine + TaviAIEngine + IntentRouter + GeminiShellExecutor wired |
 | 19 | Privacy / Control / Warden | Implemented — TaviWarden + WardenScreen |
-| 1–10, 15–16, 18 | Weitere Cluster | Roadmap |
+| 2–4, 6–10, 16, 18 | Weitere Cluster | Roadmap |
 
 ---
 
