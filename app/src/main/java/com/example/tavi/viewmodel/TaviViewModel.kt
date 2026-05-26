@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tavi.ai.*
+import com.example.tavi.cloud.AppCategorizer
+import com.example.tavi.cloud.GeminiShellExecutor
 import com.example.tavi.cloud.RetrofitClient
 import com.example.tavi.data.TaviDatabase
 import com.example.tavi.data.TaviPreferences
@@ -44,7 +46,9 @@ data class TaviUiState(
     val showWarden: Boolean = false,
     val botWorkspacesEnabled: Boolean = true,
     val moduleHealth: ModuleHealth = ModuleHealth(),
-    val isSessionOnlyMode: Boolean = false
+    val isSessionOnlyMode: Boolean = false,
+    val categoryCache: Map<String, String> = emptyMap(),
+    val recentScopes: List<String> = emptyList()
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -63,13 +67,23 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private val actionsRouter = MobileActionsRouter(app, gardenEngine)
     private val intentRouter = IntentRouter(BotRegistry.names)
     private val selfHealEngine = SelfHealEngine()
+
+    private val geminiApiKey = BuildConfig.GEMINI_API_KEY
+        .takeIf { it.isNotBlank() && it != "placeholder" } ?: ""
+
     private val taviAI = TaviAIEngine(
         context = app,
         localEngine = localAI,
         geminiService = RetrofitClient.geminiService,
         warden = warden,
-        geminiApiKey = BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "placeholder" } ?: ""
+        geminiApiKey = geminiApiKey
     )
+
+    // Optional cloud modules — only active when an API key is configured
+    private val shellExecutor: GeminiShellExecutor? =
+        if (geminiApiKey.isNotBlank()) GeminiShellExecutor(RetrofitClient.geminiService, geminiApiKey) else null
+    private val appCategorizer: AppCategorizer? =
+        if (geminiApiKey.isNotBlank()) AppCategorizer(RetrofitClient.geminiService, geminiApiKey) else null
 
     private val _state = MutableStateFlow(TaviUiState())
     val state: StateFlow<TaviUiState> = _state.asStateFlow()
@@ -77,7 +91,11 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     // Session-scope anchor overrides — not persisted to DB when sessionOnlyMode is on
     private val _sessionAnchorOverrides = MutableStateFlow<Map<String, Boolean>>(emptyMap())
 
+    // Reactive focus limit — drives foreground query, updated by prefs and SIMPLIFY/EXPAND AI actions
+    private val _maxFocusItems = MutableStateFlow(5)
+
     private var stateGrammar: TaviState = TaviState.Idle
+    private var categoriesLoaded = false
 
     init {
         viewModelScope.launch { appScanner.syncInstalledApps() }
@@ -95,6 +113,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private fun scheduleGardenTending(app: Application) {
         val work = PeriodicWorkRequestBuilder<GardenTendWorker>(24, TimeUnit.HOURS)
             .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
+            .setBackoffCriteria(BackoffPolicy.LINEAR, 15, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(app)
             .enqueueUniquePeriodicWork("gardenTend", ExistingPeriodicWorkPolicy.KEEP, work)
@@ -115,7 +134,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 combine(
                     combine(
-                        gardenRepo.foregroundNodes(),
+                        // flatMapLatest re-subscribes to foregroundNodes whenever _maxFocusItems changes
+                        _maxFocusItems.flatMapLatest { limit -> gardenRepo.foregroundNodes(limit) },
                         gardenRepo.midgroundNodes(),
                         gardenRepo.backgroundNodes(),
                         gardenRepo.fossilCandidates()
@@ -128,7 +148,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                         layers[0].applyOverrides(),
                         layers[1].applyOverrides(),
                         layers[2].applyOverrides(),
-                        layers[3]  // fossils don't need anchor override
+                        layers[3]
                     )
                 }.collect { layers ->
                     _state.update {
@@ -140,6 +160,11 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                             moduleHealth = it.moduleHealth.copy(garden = ModuleStatus.OK)
                         )
                     }
+                    // Lazy one-time category load when fossil candidates first appear
+                    if (!categoriesLoaded && layers[3].isNotEmpty()) {
+                        categoriesLoaded = true
+                        viewModelScope.launch { loadCategories(layers[3]) }
+                    }
                 }
             }.onFailure {
                 _state.update { it.copy(moduleHealth = it.moduleHealth.copy(garden = ModuleStatus.FAILED)) }
@@ -147,9 +172,26 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private suspend fun loadCategories(nodes: List<GardenNode>) {
+        appCategorizer ?: return
+        val cache = appCategorizer.categorize(nodes.map { it.packageName })
+        if (cache.isNotEmpty()) _state.update { it.copy(categoryCache = cache) }
+    }
+
     private fun collectPreferences() = viewModelScope.launch {
-        prefs.currentScopeTag.collect { scope ->
-            _state.update { it.copy(currentScope = scope) }
+        launch {
+            prefs.currentScopeTag.collect { scope ->
+                _state.update { it.copy(currentScope = scope) }
+            }
+        }
+        launch {
+            // Keep _maxFocusItems in sync with persisted pref on startup and after restarts
+            prefs.maxFocusItems.collect { limit -> _maxFocusItems.value = limit }
+        }
+        launch {
+            prefs.recentScopes.collect { scopes ->
+                _state.update { it.copy(recentScopes = scopes) }
+            }
         }
     }
 
@@ -174,7 +216,6 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private fun collectSessionOnlyMode() = viewModelScope.launch {
         warden.isSessionOnlyMode.collect { sessionOnly ->
             _state.update { it.copy(isSessionOnlyMode = sessionOnly) }
-            // Clear session overrides when mode is turned off (return to DB-persisted state)
             if (!sessionOnly) _sessionAnchorOverrides.value = emptyMap()
         }
     }
@@ -243,14 +284,10 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                     emitEvent(TaviEvent.AIActionReceived("settings"))
                 }
                 is IntentRouterResult.BuildLayout -> {
-                    _state.update {
-                        it.copy(
-                            isThinking = false, isOrbExpanded = false, promptText = "",
-                            aiMessage = "Layout update: ${result.prompt}"
-                        )
-                    }
-                    emitEvent(TaviEvent.AIActionReceived("build_layout"))
+                    // Route through AI with layout-adaptation framing so the response is actionable
+                    handleAIQuery("Adjust the launcher layout: ${result.prompt}")
                 }
+                is IntentRouterResult.HandoffToBot -> handleHandoff(result.botId, result.content)
             }
         }
     }
@@ -267,8 +304,23 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
 
             // Persist scope tag when AI creates one (respects session-only mode)
             if (response.action == AIActions.CREATE_SCOPE && !response.target.isNullOrBlank()) {
-                if (!_state.value.isSessionOnlyMode) prefs.setScopeTag(response.target)
+                if (!_state.value.isSessionOnlyMode) {
+                    prefs.setScopeTag(response.target)
+                    prefs.addRecentScope(response.target)
+                }
                 _state.update { it.copy(currentScope = response.target) }
+            }
+
+            // Live focus limit adaptation (respects session-only mode)
+            when (response.action) {
+                AIActions.SIMPLIFY_VIEW -> {
+                    if (!_state.value.isSessionOnlyMode) prefs.setMaxFocusItems(3)
+                    _maxFocusItems.value = 3
+                }
+                AIActions.EXPAND_VIEW -> {
+                    if (!_state.value.isSessionOnlyMode) prefs.setMaxFocusItems(5)
+                    _maxFocusItems.value = 5
+                }
             }
 
             // AI-generated shell commands go through the same risk gate as manual ! commands
@@ -303,8 +355,37 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             emitEvent(TaviEvent.BlockedOccurred("Power adapter not connected"))
             return
         }
-        _state.update { it.copy(isThinking = false, pendingShellCommand = command) }
-        emitEvent(TaviEvent.RiskCommand(command))
+        val cloudEnabled = warden.isCloudAiEnabled.firstOrNull() ?: false
+        val executableCommand = if (cloudEnabled && shellExecutor != null && looksLikeNaturalLanguage(command)) {
+            shellExecutor.buildCommand(command).getOrDefault(command)
+        } else {
+            command
+        }
+        _state.update { it.copy(isThinking = false, pendingShellCommand = executableCommand) }
+        emitEvent(TaviEvent.RiskCommand(executableCommand))
+    }
+
+    private suspend fun handleHandoff(botId: String, content: String) {
+        if (!_state.value.botWorkspacesEnabled) {
+            emitEvent(TaviEvent.BlockedOccurred("Bot workspaces are off"))
+            _state.update { it.copy(isThinking = false) }
+            return
+        }
+        val botIdx = _state.value.bots.indexOfFirst { it.id == botId }
+        if (botIdx < 0) {
+            emitEvent(TaviEvent.BlockedOccurred("Unknown bot: $botId"))
+            _state.update { it.copy(isThinking = false) }
+            return
+        }
+        if (content.isNotBlank()) {
+            val cm = getApplication<Application>()
+                .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("tavi-handoff", content))
+        }
+        _state.update {
+            it.copy(targetPage = 2 + botIdx, isThinking = false, isOrbExpanded = false, promptText = "")
+        }
+        emitEvent(TaviEvent.AIActionReceived("handoff_bot"))
     }
 
     fun onRiskConfirmed() {
@@ -342,7 +423,6 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     fun onNodeLongPress(node: GardenNode) = viewModelScope.launch {
         val newAnchorState = !node.isSpatiallyAnchored
         if (_state.value.isSessionOnlyMode) {
-            // Session-only: update in-memory overrides without touching the DB
             _sessionAnchorOverrides.update { it + (node.packageName to newAnchorState) }
         } else {
             gardenEngine.toggleAnchor(node.packageName, newAnchorState)
@@ -351,6 +431,14 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onFossilRemove(node: GardenNode) = viewModelScope.launch {
         gardenEngine.markAsFossil(node.packageName)
+    }
+
+    fun onScopeSelected(scope: String) = viewModelScope.launch {
+        if (!_state.value.isSessionOnlyMode) {
+            prefs.setScopeTag(scope)
+            prefs.addRecentScope(scope)
+        }
+        _state.update { it.copy(currentScope = scope) }
     }
 
     fun clearTargetPage() = _state.update { it.copy(targetPage = null) }
@@ -393,5 +481,16 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         localAI.shutdown()
         super.onCleared()
+    }
+
+    companion object {
+        private val SHELL_NATIVE_PREFIXES = listOf(
+            "/", "svc ", "pm ", "am ", "settings ", "dumpsys ", "cmd ", "sh ", "su "
+        )
+
+        fun looksLikeNaturalLanguage(command: String): Boolean {
+            if (!command.contains(" ")) return false
+            return SHELL_NATIVE_PREFIXES.none { command.startsWith(it) }
+        }
     }
 }

@@ -38,7 +38,8 @@ fun FossilDeckScreen(
     candidates: List<GardenNode>,
     onKeep: (GardenNode) -> Unit,
     onRemove: (GardenNode) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    categoryCache: Map<String, String> = emptyMap()
 ) {
     var currentIndex by remember { mutableIntStateOf(0) }
 
@@ -88,6 +89,7 @@ fun FossilDeckScreen(
                             node = node,
                             isTopCard = i == 0,
                             stackOffset = i,
+                            category = categoryCache[node.packageName],
                             onSwipedRight = { onKeep(node); currentIndex++ },
                             onSwipedLeft = { onRemove(node); currentIndex++ }
                         )
@@ -123,6 +125,7 @@ fun SwipeableAppCard(
     node: GardenNode,
     isTopCard: Boolean,
     stackOffset: Int,
+    category: String? = null,
     onSwipedLeft: () -> Unit,
     onSwipedRight: () -> Unit
 ) {
@@ -220,7 +223,10 @@ fun SwipeableAppCard(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "${node.launchCount} launches · ${node.growthStage.name}",
+                text = buildString {
+                    append("${node.launchCount} launches · ${node.growthStage.name}")
+                    if (!category.isNullOrBlank()) append(" · $category")
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.Gray,
                 textAlign = TextAlign.Center

@@ -6,6 +6,7 @@ sealed class IntentRouterResult {
     data class ShellCommand(val command: String) : IntentRouterResult()
     data class BuildLayout(val prompt: String) : IntentRouterResult()
     data class OpenUrl(val url: String) : IntentRouterResult()
+    data class HandoffToBot(val botId: String, val content: String) : IntentRouterResult()
     object OpenSettings : IntentRouterResult()
 }
 
@@ -24,6 +25,16 @@ class IntentRouter(private val knownBotNames: Set<String>) {
             }
             trimmed.startsWith("/build") -> {
                 IntentRouterResult.BuildLayout(trimmed.removePrefix("/build").trim())
+            }
+            trimmed.startsWith(">") -> {
+                val rest = trimmed.removePrefix(">")
+                val (botId, content) = if (": " in rest) {
+                    val parts = rest.split(": ", limit = 2)
+                    parts[0].trim().lowercase() to parts[1].trim()
+                } else {
+                    rest.trim().lowercase() to ""
+                }
+                IntentRouterResult.HandoffToBot(botId, content)
             }
             trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
                 IntentRouterResult.OpenUrl(trimmed)

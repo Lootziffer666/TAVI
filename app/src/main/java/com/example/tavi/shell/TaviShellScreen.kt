@@ -103,7 +103,8 @@ fun TaviShellScreen(
                             Uri.parse("package:${node.packageName}")
                         ).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
                         context.startActivity(deleteIntent)
-                    }
+                    },
+                    categoryCache = uiState.categoryCache
                 )
                 page == 1 -> SpatialLauncherScreen(
                     foreground = uiState.foreground,
