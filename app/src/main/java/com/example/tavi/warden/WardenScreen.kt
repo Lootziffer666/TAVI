@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.tavi.ai.ModuleHealth
 import com.example.tavi.ai.ModuleStatus
+import com.example.tavi.manipulation.ManipulationEngine
 import com.example.tavi.notification.NotificationRule
 import com.example.tavi.subscription.SubscriptionInfo
 import com.example.tavi.ui.theme.*
@@ -28,6 +29,7 @@ fun WardenScreen(
     detectedSubscriptions: List<SubscriptionInfo> = emptyList(),
     gameWatchInterval: Int = 60,
     onGameWatchIntervalChanged: (Int) -> Unit = {},
+    topPatterns: List<Pair<String, Int>> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val isShizukuEnabled by warden.isShizukuEnabled.collectAsStateWithLifecycle(false)
@@ -214,6 +216,35 @@ fun WardenScreen(
                         Text(sub.cycle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                     Text(sub.estimatedCost, style = MaterialTheme.typography.bodyMedium, color = GlowAmber)
+                }
+            }
+        }
+
+        // Seen patterns — only shown when at least one encounter has been recorded
+        if (topPatterns.isNotEmpty()) {
+            HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 8.dp))
+            Text(
+                "Seen patterns",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.Gray,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
+            Text(
+                "Manipulation mechanics encountered when opening apps.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.DarkGray,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            topPatterns.forEach { (id, count) ->
+                val name = ManipulationEngine.patternById(id)?.name ?: id
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp)
+                ) {
+                    Text(name, style = MaterialTheme.typography.bodyLarge, color = Color.White, modifier = Modifier.weight(1f))
+                    Text("×$count", style = MaterialTheme.typography.bodyMedium, color = RiskRed.copy(alpha = 0.7f))
                 }
             }
         }

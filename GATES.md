@@ -53,9 +53,8 @@
 
 ---
 
-## Laufende Audit-Fixes (TV-015 — in Arbeit)
-
-Folgende Findings aus dem vollständigen Repo-Audit (post TV-014) wurden identifiziert und behoben:
+### Gate TV-015: Vollständiger Repo-Audit + Docs-Update ✓
+- **Ergebnis:** 5 bestätigte Bugs behoben — Private-Mode-Isolation in ClipboardRepository, handleHandoff() Private-Check, IntentClarifierEngine `.x.`-Match + 30+ App-Familien ergänzt, ManipulationEngine `.x.`-Match, BotWorkspaceScreen WebView-Update-Lambda. Alle Docs aktualisiert (ARCHITECTURE, CLUSTER_MAP, README, ROADMAP, GATES).
 
 | # | Datei | Art | Beschreibung |
 |---|---|---|---|
@@ -67,9 +66,23 @@ Folgende Findings aus dem vollständigen Repo-Audit (post TV-014) wurden identif
 
 ---
 
+### Gate TV-016: Cluster 9 Phase 2 — Reflexionsfrage + Kinderhinweis + Pattern-Statistik ✓
+- **Ergebnis:** Drei verbleibende Cluster-9-Features implementiert: (1) Tappable pattern chips in IntentClarifierCard — Tap-to-expand zeigt Erklärung + Reflexionsfrage; (2) Amber-Badge "· children" im Header wenn Patterns mit `childRelevant=true` vorhanden; (3) Pattern-Statistik — persistente Encounter-Zähler in DataStore, Top-3-Liste in WardenScreen.
+
+**Geänderte Dateien:**
+- `manipulation/ManipulationPattern.kt` — neue Felder `explanation`, `reflectionQuestion`, `childRelevant`
+- `manipulation/ManipulationEngine.kt` — alle 15 Patterns mit vollständigen Daten; `ALL_PATTERNS` + `patternById()`
+- `shell/IntentClarifierCard.kt` — expandable chips + Kinder-Badge
+- `data/TaviPreferences.kt` — `PATTERN_STATS_JSON`, `patternStats: Flow<Map<String, Int>>`, `recordPatternEncounters()`
+- `viewmodel/TaviViewModel.kt` — `topPatterns` in TaviUiState; `collectPatternStats()`; encounter-Recording in `onNodeTap()`
+- `warden/WardenScreen.kt` — `topPatterns` Parameter; "Seen patterns"-Sektion
+- `shell/TaviShellScreen.kt` — `topPatterns` Weitergabe an WardenScreen
+
+---
+
 ## Offene Roadmap-Gates
 
-### Gate TV-016: Cluster 10 — Supervised Game Drawer (optional)
+### Gate TV-017: Cluster 10 — Supervised Game Drawer (optional)
 - **Scope:** Eigenständiges Familien-Feature / potentielles Sub-Projekt
 - **Voraussetzungen:** Grundlagenentscheidung — Teil von TAVI oder eigenes Repo?
 - **Kill:** Wenn als separates Projekt abgetrennt, hier schließen ohne Implementation

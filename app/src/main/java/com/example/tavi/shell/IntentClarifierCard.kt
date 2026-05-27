@@ -8,12 +8,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,6 +32,7 @@ import com.example.tavi.ui.theme.TaviAccent
 
 // One Anchor for TaviState.Capture — shown when intent clarifier is active.
 // Failure behavior: Skip always present; tapping it launches the app directly.
+@Suppress("NAME_SHADOWING")
 @Composable
 fun IntentClarifierCard(
     node: GardenNode,
@@ -44,6 +46,8 @@ fun IntentClarifierCard(
     onWatchToggle: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var expandedPatternId by remember { mutableStateOf<String?>(null) }
+
     AnimatedVisibility(
         visible = visible && (suggestions.isNotEmpty() || patterns.isNotEmpty()),
         enter = slideInVertically { it } + fadeIn(animationSpec = androidx.compose.animation.core.tween(180)),
@@ -111,20 +115,38 @@ fun IntentClarifierCard(
 
                 // Pattern warning row — names known manipulation mechanics neutrally
                 if (patterns.isNotEmpty()) {
+                    val hasChildRelevant = patterns.any { it.childRelevant }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "Known patterns",
-                            color = RiskRed.copy(alpha = 0.7f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Known patterns",
+                                color = RiskRed.copy(alpha = 0.7f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (hasChildRelevant) {
+                                Text(
+                                    text = "· children",
+                                    color = GlowAmber.copy(alpha = 0.85f),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(patterns) { pattern ->
                                 SuggestionChip(
-                                    onClick = {},
+                                    onClick = {
+                                        expandedPatternId =
+                                            if (expandedPatternId == pattern.id) null else pattern.id
+                                    },
                                     label = { Text(pattern.name, fontSize = 11.sp) },
                                     colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = RiskRed.copy(alpha = 0.08f),
+                                        containerColor = if (expandedPatternId == pattern.id)
+                                            RiskRed.copy(alpha = 0.18f) else RiskRed.copy(alpha = 0.08f),
                                         labelColor = RiskRed.copy(alpha = 0.85f)
                                     ),
                                     border = SuggestionChipDefaults.suggestionChipBorder(
@@ -132,6 +154,36 @@ fun IntentClarifierCard(
                                         borderColor = RiskRed.copy(alpha = 0.25f)
                                     )
                                 )
+                            }
+                        }
+                        // Expanded detail — shown below chips when a pattern is tapped
+                        val expanded = patterns.firstOrNull { it.id == expandedPatternId }
+                        AnimatedVisibility(visible = expanded != null) {
+                            if (expanded != null) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            RiskRed.copy(alpha = 0.06f),
+                                            RoundedCornerShape(12.dp)
+                                        )
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = expanded.explanation,
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 12.sp,
+                                        lineHeight = 16.sp
+                                    )
+                                    Text(
+                                        text = "→ ${expanded.reflectionQuestion}",
+                                        color = FallbackGrey,
+                                        fontSize = 11.sp,
+                                        fontStyle = FontStyle.Italic,
+                                        lineHeight = 15.sp
+                                    )
+                                }
                             }
                         }
                     }

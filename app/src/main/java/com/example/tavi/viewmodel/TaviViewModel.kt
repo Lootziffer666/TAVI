@@ -93,7 +93,8 @@ data class TaviUiState(
     val gameWatchInterval: Int = 60,
     val cloudAiEnabled: Boolean = false,
     val wantItems: List<WantItem> = emptyList(),
-    val showWantPanel: Boolean = false
+    val showWantPanel: Boolean = false,
+    val topPatterns: List<Pair<String, Int>> = emptyList()
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -166,6 +167,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectWantShelf()
         collectNotificationRules()
         collectGameWatchInterval()
+        collectPatternStats()
         observeGameSession()
         initAIEngine()
     }
@@ -236,6 +238,16 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         appCategorizer ?: return
         val cache = appCategorizer.categorize(nodes.map { it.packageName })
         if (cache.isNotEmpty()) _state.update { it.copy(categoryCache = cache) }
+    }
+
+    private fun collectPatternStats() = viewModelScope.launch {
+        prefs.patternStats.collect { stats ->
+            val top = stats.entries
+                .sortedByDescending { it.value }
+                .take(3)
+                .map { it.key to it.value }
+            _state.update { it.copy(topPatterns = top) }
+        }
     }
 
     private fun collectPreferences() = viewModelScope.launch {
@@ -623,6 +635,9 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                     showWatchToggle = showWatch,
                     watchGameEnabled = false
                 )
+            }
+            if (patterns.isNotEmpty()) {
+                prefs.recordPatternEncounters(patterns.map { it.id })
             }
             emitEvent(TaviEvent.IntentClarifierOpen)
         }

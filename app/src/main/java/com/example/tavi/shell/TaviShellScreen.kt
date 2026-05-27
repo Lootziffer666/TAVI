@@ -209,6 +209,7 @@ fun TaviShellScreen(
                 detectedSubscriptions = uiState.detectedSubscriptions,
                 gameWatchInterval = uiState.gameWatchInterval,
                 onGameWatchIntervalChanged = viewModel::onGameWatchIntervalChanged,
+                topPatterns = uiState.topPatterns,
                 modifier = Modifier.fillMaxSize()
             )
         }

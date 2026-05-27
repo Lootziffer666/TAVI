@@ -30,6 +30,7 @@ class TaviPreferences(private val context: Context) {
         val NOTIFICATION_RULES_JSON = stringPreferencesKey("notificationRules")
         val GAME_WATCH_INTERVAL = intPreferencesKey("gameWatchInterval")
         val WANT_SHELF_JSON = stringPreferencesKey("wantShelf")
+        val PATTERN_STATS_JSON = stringPreferencesKey("patternStats")
     }
 
     val maxFocusItems: Flow<Int> = context.dataStore.data.map { it[MAX_FOCUS_ITEMS] ?: 5 }
@@ -49,6 +50,13 @@ class TaviPreferences(private val context: Context) {
     val notificationRulesJson: Flow<String?> = context.dataStore.data.map { it[NOTIFICATION_RULES_JSON] }
     val gameWatchInterval: Flow<Int> = context.dataStore.data.map { it[GAME_WATCH_INTERVAL] ?: 60 }
     val wantShelfJson: Flow<String?> = context.dataStore.data.map { it[WANT_SHELF_JSON] }
+    val patternStats: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
+        val json = prefs[PATTERN_STATS_JSON] ?: return@map emptyMap()
+        runCatching {
+            val obj = org.json.JSONObject(json)
+            obj.keys().asSequence().associateWith { obj.getInt(it) }
+        }.getOrDefault(emptyMap())
+    }
     val recentScopes: Flow<List<String>> = context.dataStore.data.map { prefs ->
         val json = prefs[RECENT_SCOPES_JSON] ?: return@map emptyList()
         runCatching {
@@ -210,6 +218,19 @@ class TaviPreferences(private val context: Context) {
     }
 
     suspend fun clearWantShelf() = context.dataStore.edit { it.remove(WANT_SHELF_JSON) }
+
+    suspend fun recordPatternEncounters(patternIds: List<String>) {
+        if (patternIds.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val obj = runCatching {
+                org.json.JSONObject(prefs[PATTERN_STATS_JSON] ?: "{}")
+            }.getOrDefault(org.json.JSONObject())
+            patternIds.forEach { id ->
+                obj.put(id, obj.optInt(id, 0) + 1)
+            }
+            prefs[PATTERN_STATS_JSON] = obj.toString()
+        }
+    }
 
     suspend fun addRecentScope(scope: String) = context.dataStore.edit { prefs ->
         val current = runCatching {
