@@ -109,7 +109,8 @@ object IntentClarifierEngine {
                 IntentSuggestion("Browse"),
                 IntentSuggestion("Search")
             )
-            pkg.contains("game") || pkg.contains("play") -> listOf(
+            pkg.contains(".game") || pkg.contains(".games") || pkg.contains("gaming") ||
+            pkg == "com.google.android.play.games" -> listOf(
                 IntentSuggestion("Play"),
                 IntentSuggestion("Continue")
             )

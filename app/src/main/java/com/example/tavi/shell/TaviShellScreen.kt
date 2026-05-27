@@ -94,7 +94,7 @@ fun TaviShellScreen(
             when {
                 page == 0 -> FossilDeckScreen(
                     candidates = uiState.fossilCandidates.sortedBy { it.affinityScore },
-                    onKeep = { node -> viewModel.onNodeTap(node) },
+                    onKeep = viewModel::onFossilKeep,
                     onRemove = { node ->
                         // Mark fossil in DB first so it doesn't reappear on next garden sync
                         viewModel.onFossilRemove(node)

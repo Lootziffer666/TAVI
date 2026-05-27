@@ -17,20 +17,22 @@ class SnippetRepository(private val prefs: TaviPreferences) {
 
     private fun parseSnippets(json: String?): List<SnippetEntry> {
         json ?: return emptyList()
-        return runCatching {
-            val arr = JSONArray(json)
-            List(arr.length()) { i ->
-                val obj = arr.getJSONObject(i)
-                val tagsArr = obj.optJSONArray("tags")
-                SnippetEntry(
-                    id = obj.optString("id").ifBlank { UUID.randomUUID().toString() },
-                    title = obj.getString("title"),
-                    content = obj.getString("content"),
-                    tags = tagsArr?.let { t -> List(t.length()) { t.getString(it) } } ?: emptyList(),
-                    isFavorite = obj.optBoolean("fav", false),
-                    timestamp = obj.optLong("ts", System.currentTimeMillis())
-                )
+        val arr = runCatching { JSONArray(json) }.getOrNull() ?: return emptyList()
+        return buildList {
+            for (i in 0 until arr.length()) {
+                runCatching {
+                    val obj = arr.getJSONObject(i)
+                    val tagsArr = obj.optJSONArray("tags")
+                    SnippetEntry(
+                        id = obj.optString("id").ifBlank { UUID.randomUUID().toString() },
+                        title = obj.optString("title").ifBlank { "Untitled" },
+                        content = obj.optString("content"),
+                        tags = tagsArr?.let { t -> List(t.length()) { t.getString(it) } } ?: emptyList(),
+                        isFavorite = obj.optBoolean("fav", false),
+                        timestamp = obj.optLong("ts", System.currentTimeMillis())
+                    )
+                }.onSuccess { add(it) }
             }
-        }.getOrDefault(emptyList())
+        }
     }
 }

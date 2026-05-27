@@ -518,11 +518,15 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     pendingLaunchNode = node,
                     intentSuggestions = suggestions,
-                    showIntentClarifier = true,
-                    taviState = TaviState.Capture
+                    showIntentClarifier = true
                 )
             }
+            emitEvent(TaviEvent.IntentClarifierOpen)
         }
+    }
+
+    fun onFossilKeep(node: GardenNode) = viewModelScope.launch {
+        gardenEngine.recordLaunch(node.packageName)
     }
 
     fun onIntentSelected(suggestion: IntentSuggestion) = viewModelScope.launch {
@@ -534,6 +538,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                 intentSuggestions = emptyList()
             )
         }
+        // suggestion.subQuery intentionally unused in MVP — Phase 2 will route it as a
+        // pre-filled scope/context signal to the AI engine after launch
         launchNode(node)
     }
 
@@ -556,8 +562,13 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         val intent = pm.getLaunchIntentForPackage(node.packageName)?.apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
-        intent?.let { getApplication<Application>().startActivity(it) }
-        emitEvent(TaviEvent.ExecutionSuccess)
+        if (intent != null) {
+            runCatching { getApplication<Application>().startActivity(intent) }
+                .onSuccess { emitEvent(TaviEvent.ExecutionSuccess) }
+                .onFailure { emitEvent(TaviEvent.ExecutionFailed("Cannot open app", "Check if the app is installed")) }
+        } else {
+            emitEvent(TaviEvent.ExecutionFailed("Cannot open app", "No launch intent found"))
+        }
     }
 
     fun onNodeLongPress(node: GardenNode) = viewModelScope.launch {
@@ -605,11 +616,15 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(isThinking = false) }
             return
         }
-        val cm = getApplication<Application>()
-            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        val content = cm.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+        val content = _state.value.aiMessage?.takeIf { it.isNotBlank() }
+            ?: _state.value.clipHistory.firstOrNull()?.content
+            ?: run {
+                val cm = getApplication<Application>()
+                    .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+            } ?: ""
         if (content.isBlank()) {
-            emitEvent(TaviEvent.BlockedOccurred("Clipboard is empty"))
+            emitEvent(TaviEvent.BlockedOccurred("Nothing to save — AI response, clip history, and clipboard are all empty"))
             _state.update { it.copy(isThinking = false) }
             return
         }
@@ -635,7 +650,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     fun onSaveAiAsCapsule(title: String = "AI response") = viewModelScope.launch {
         val content = _state.value.aiMessage ?: return@launch
         capsuleRepo.add(WorkCapsule(title = title, content = content, source = CapsuleSource.AI_RESPONSE))
-        _state.update { it.copy(aiMessage = "Saved as capsule: \"$title\"") }
+        // Dismiss banner rather than replacing it — a new banner with a "Save" button would re-trigger
+        _state.update { it.copy(aiMessage = null) }
     }
 
     private suspend fun handleSaveCapsule(title: String, source: CapsuleSource) {
@@ -644,11 +660,15 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(isThinking = false) }
             return
         }
-        val cm = getApplication<Application>()
-            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        val content = cm.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+        val content = _state.value.aiMessage?.takeIf { it.isNotBlank() }
+            ?: _state.value.clipHistory.firstOrNull()?.content
+            ?: run {
+                val cm = getApplication<Application>()
+                    .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+            } ?: ""
         if (content.isBlank()) {
-            emitEvent(TaviEvent.BlockedOccurred("Clipboard is empty"))
+            emitEvent(TaviEvent.BlockedOccurred("Nothing to save — AI response, clip history, and clipboard are all empty"))
             _state.update { it.copy(isThinking = false) }
             return
         }

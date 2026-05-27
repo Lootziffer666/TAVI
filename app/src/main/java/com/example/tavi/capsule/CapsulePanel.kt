@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -53,9 +54,10 @@ fun CapsulePanel(
                     )
                 }
             } else {
-                val fmt = SimpleDateFormat("MMM d HH:mm", Locale.getDefault())
+                val fmt = remember { SimpleDateFormat("MMM d HH:mm", Locale.getDefault()) }
+                val sorted = remember(capsules) { capsules.sortedByDescending { it.timestamp } }
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(capsules.sortedByDescending { it.timestamp }, key = { it.id }) { capsule ->
+                    items(sorted, key = { it.id }) { capsule ->
                         CapsuleRow(
                             capsule = capsule,
                             formattedTime = fmt.format(Date(capsule.timestamp)),

@@ -16,19 +16,21 @@ class CapsuleRepository(private val prefs: TaviPreferences) {
 
     private fun parseCapsules(json: String?): List<WorkCapsule> {
         json ?: return emptyList()
-        return runCatching {
-            val arr = JSONArray(json)
-            List(arr.length()) { i ->
-                val obj = arr.getJSONObject(i)
-                WorkCapsule(
-                    id = obj.optString("id").ifBlank { UUID.randomUUID().toString() },
-                    title = obj.getString("title"),
-                    content = obj.getString("content"),
-                    source = runCatching { CapsuleSource.valueOf(obj.optString("src", "CLIPBOARD")) }
-                        .getOrDefault(CapsuleSource.CLIPBOARD),
-                    timestamp = obj.optLong("ts", System.currentTimeMillis())
-                )
+        val arr = runCatching { JSONArray(json) }.getOrNull() ?: return emptyList()
+        return buildList {
+            for (i in 0 until arr.length()) {
+                runCatching {
+                    val obj = arr.getJSONObject(i)
+                    WorkCapsule(
+                        id = obj.optString("id").ifBlank { UUID.randomUUID().toString() },
+                        title = obj.optString("title").ifBlank { "Untitled" },
+                        content = obj.optString("content"),
+                        source = runCatching { CapsuleSource.valueOf(obj.optString("src", "CLIPBOARD")) }
+                            .getOrDefault(CapsuleSource.CLIPBOARD),
+                        timestamp = obj.optLong("ts", System.currentTimeMillis())
+                    )
+                }.onSuccess { add(it) }
             }
-        }.getOrDefault(emptyList())
+        }
     }
 }

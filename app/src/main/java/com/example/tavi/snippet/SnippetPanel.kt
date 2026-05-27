@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,9 +33,9 @@ fun SnippetPanel(
         exit = slideOutVertically { it } + fadeOut(),
         modifier = modifier
     ) {
-        val sorted = snippets.sortedWith(
-            compareByDescending<SnippetEntry> { it.isFavorite }.thenByDescending { it.timestamp }
-        )
+        val sorted = remember(snippets) {
+            snippets.sortedWith(compareByDescending<SnippetEntry> { it.isFavorite }.thenByDescending { it.timestamp })
+        }
         Card(
             modifier = Modifier
                 .fillMaxWidth()

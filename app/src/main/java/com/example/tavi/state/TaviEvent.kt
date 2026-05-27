@@ -17,4 +17,5 @@ sealed class TaviEvent {
     object AIEngineUnavailable : TaviEvent()
     object AIEngineRestored : TaviEvent()
     data class BlockedOccurred(val reason: String) : TaviEvent()
+    object IntentClarifierOpen : TaviEvent()
 }

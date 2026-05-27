@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,7 +73,7 @@ private fun ClipChip(
             colors = SuggestionChipDefaults.suggestionChipColors(containerColor = DepthMid)
         )
         // Quick action chips (Save as snippet, Save as capsule, Open URL, Dial)
-        val quickActions = QuickActionSuggester.suggest(entry)
+        val quickActions = remember(entry) { QuickActionSuggester.suggest(entry) }
         if (quickActions.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 quickActions.forEach { action ->

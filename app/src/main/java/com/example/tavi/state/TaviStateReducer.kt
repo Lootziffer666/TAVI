@@ -22,5 +22,10 @@ object TaviStateReducer {
         is TaviEvent.AIEngineUnavailable -> TaviState.Fallback
         is TaviEvent.AIEngineRestored -> TaviState.Idle
         is TaviEvent.BlockedOccurred -> TaviState.Blocked(event.reason)
+        // Only allowed when the user is not mid-risk, private, or blocked
+        is TaviEvent.IntentClarifierOpen -> when (state) {
+            is TaviState.Idle, is TaviState.Ready, is TaviState.Fallback -> TaviState.Capture
+            else -> state
+        }
     }
 }
