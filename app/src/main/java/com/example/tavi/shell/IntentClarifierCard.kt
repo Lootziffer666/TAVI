@@ -21,9 +21,11 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.tavi.garden.GardenNode
 import com.example.tavi.intent.IntentSuggestion
+import com.example.tavi.manipulation.ManipulationPattern
 import com.example.tavi.ui.theme.BreathBlue
 import com.example.tavi.ui.theme.DepthMid
 import com.example.tavi.ui.theme.FallbackGrey
+import com.example.tavi.ui.theme.RiskRed
 import com.example.tavi.ui.theme.TaviAccent
 
 // One Anchor for TaviState.Capture — shown when intent clarifier is active.
@@ -32,13 +34,14 @@ import com.example.tavi.ui.theme.TaviAccent
 fun IntentClarifierCard(
     node: GardenNode,
     suggestions: List<IntentSuggestion>,
+    patterns: List<ManipulationPattern> = emptyList(),
     visible: Boolean,
     onSuggestionSelected: (IntentSuggestion) -> Unit,
     onSkip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
-        visible = visible && suggestions.isNotEmpty(),
+        visible = visible && (suggestions.isNotEmpty() || patterns.isNotEmpty()),
         enter = slideInVertically { it } + fadeIn(animationSpec = androidx.compose.animation.core.tween(180)),
         exit = slideOutVertically { it } + fadeOut(animationSpec = androidx.compose.animation.core.tween(120)),
         modifier = modifier
@@ -82,21 +85,51 @@ fun IntentClarifierCard(
                     }
                 }
 
-                // Intent suggestion chips
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(suggestions) { suggestion ->
-                        SuggestionChip(
-                            onClick = { onSuggestionSelected(suggestion) },
-                            label = { Text(suggestion.label) },
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = Color.Transparent,
-                                labelColor = BreathBlue
-                            ),
-                            border = SuggestionChipDefaults.suggestionChipBorder(
-                                enabled = true,
-                                borderColor = BreathBlue.copy(alpha = 0.4f)
+                // Intent suggestion chips — only shown when suggestions exist
+                if (suggestions.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(suggestions) { suggestion ->
+                            SuggestionChip(
+                                onClick = { onSuggestionSelected(suggestion) },
+                                label = { Text(suggestion.label) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = Color.Transparent,
+                                    labelColor = BreathBlue
+                                ),
+                                border = SuggestionChipDefaults.suggestionChipBorder(
+                                    enabled = true,
+                                    borderColor = BreathBlue.copy(alpha = 0.4f)
+                                )
                             )
+                        }
+                    }
+                }
+
+                // Pattern warning row — names known manipulation mechanics neutrally
+                if (patterns.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Known patterns",
+                            color = RiskRed.copy(alpha = 0.7f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
                         )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(patterns) { pattern ->
+                                SuggestionChip(
+                                    onClick = {},
+                                    label = { Text(pattern.name, fontSize = 11.sp) },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = RiskRed.copy(alpha = 0.08f),
+                                        labelColor = RiskRed.copy(alpha = 0.85f)
+                                    ),
+                                    border = SuggestionChipDefaults.suggestionChipBorder(
+                                        enabled = true,
+                                        borderColor = RiskRed.copy(alpha = 0.25f)
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
 

@@ -20,6 +20,7 @@ import com.example.tavi.clipboard.ClipEntry
 import com.example.tavi.clipboard.ClipPanel
 import com.example.tavi.garden.GardenNode
 import com.example.tavi.intent.IntentSuggestion
+import com.example.tavi.manipulation.ManipulationPattern
 import com.example.tavi.quickaction.QuickActionSuggester
 import com.example.tavi.quickaction.QuickActionType
 import com.example.tavi.snippet.SnippetEntry
@@ -75,6 +76,7 @@ fun SpatialLauncherScreen(
     onSaveAiAsCapsule: () -> Unit = {},
     pendingLaunchNode: GardenNode? = null,
     intentSuggestions: List<IntentSuggestion> = emptyList(),
+    manipulationPatterns: List<ManipulationPattern> = emptyList(),
     showIntentClarifier: Boolean = false,
     onIntentSelected: (IntentSuggestion) -> Unit = {},
     onIntentClarifierDismiss: () -> Unit = {},
@@ -191,6 +193,7 @@ fun SpatialLauncherScreen(
             IntentClarifierCard(
                 node = pendingLaunchNode,
                 suggestions = intentSuggestions,
+                patterns = manipulationPatterns,
                 visible = showIntentClarifier,
                 onSuggestionSelected = onIntentSelected,
                 onSkip = onIntentClarifierDismiss,

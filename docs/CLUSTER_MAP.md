@@ -1,7 +1,7 @@
 # TAVI Cluster Map — 19 Cluster mit Slot Contracts
 
-**Stand:** 2026-05-27 (aktualisiert nach TV-007 Delivery)
-**Status:** Cluster 1, 2, 3, 5, 6, 11, 12, 13, 14, 15, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
+**Stand:** 2026-05-27 (aktualisiert nach TV-009 Delivery)
+**Status:** Cluster 1, 2, 3, 5, 6, 9, 11, 12, 13, 14, 15, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
 **Schema:** Jeder Cluster folgt dem Slot Contract aus `CONCEPT_CONTRACT.md` (Name, Purpose, User State, Input, Output, Visible Surface, Failure Behavior) plus Roadmap-Status, Dependencies und MVP-Cut-Empfehlung.
 
 ---
@@ -23,7 +23,8 @@
 | 17 | AI / Tool Handoff | **Implemented** — LocalAIEngine + TaviAIEngine + IntentRouter + GeminiShellExecutor |
 | 18 | Work Capsule | **Implemented** — WorkCapsule + CapsuleRepository + CapsulePanel + AIResponseBanner save button |
 | 19 | Privacy / Control / Warden | **Implemented** — TaviWarden + WardenScreen |
-| 4, 6–10, 16 | Weitere Cluster | Roadmap |
+| 9 | Psychotricks / Manipulation Pattern Lexicon | **Implemented** — ManipulationEngine (15 patterns, 25+ apps) + IntentClarifierCard pattern row |
+| 4, 7, 8, 10, 16 | Weitere Cluster | Roadmap |
 
 ---
 
@@ -35,6 +36,8 @@
 **Implementiert (TV-005):** Cluster 1, 5, 15 — plus QoL-Verbesserungen, Refinery
 **Implementiert (TV-006):** Cluster 2, 18, 3 — Snippet Capsule, Work Capsule MVP, QuickActions
 **Implementiert (TV-007):** Cluster 6 — Intent Controller (MVP: rule-based clarifier, skip-to-launch)
+**Implementiert (TV-008):** Audit fixes — 10 findings from code-review resolved
+**Implementiert (TV-009):** Cluster 9 MVP — Manipulation Pattern Lexicon (ManipulationEngine + IntentClarifierCard extension)
 
 **Empfohlener MVP-Schnitt (5 Cluster):** 1 Clipboard, 2 Snippets, 5 Handoffs, 14 State Grammar, 19 Privacy/Warden. Alles andere ist Phase 2+.
 
@@ -202,22 +205,24 @@
 
 ---
 
-## Cluster 9 — Psychotricks / Manipulationsmuster
+## Cluster 9 — Psychotricks / Manipulationsmuster ✓ Implemented (MVP)
 
 | Feld | Inhalt |
 |---|---|
 | **Name** | Psychotricks |
 | **Purpose** | manipulative Mechaniken benennen, ohne moralisch zu blockieren |
 | **User State** | „Diese App zieht an mir" |
-| **Input** | Screenshot, App, Notification, Beschreibung |
-| **Output** | Mustername, Erklärung, nächste Option |
-| **Visible Surface** | Prüfer, Lexikon, Game-Preflight |
-| **Failure Behavior** | als unklar markieren |
-| **Roadmap** | Prototype now / Roadmap |
-| **Dependencies** | Cluster 4 (Image-as-Intent) |
-| **MVP-Cut** | nach MVP — Lexikon kann eigenständig starten |
+| **Input** | packageName beim Node-Tap (IntentClarifierEngine-Pfad) |
+| **Output** | Pattern-Chip-Row in IntentClarifierCard: Named patterns, kein Blocking |
+| **Visible Surface** | IntentClarifierCard — "Known patterns" Row wenn Muster erkannt |
+| **Failure Behavior** | Unbekannte App → kein Warning. Patterns blockieren nie. Skip immer vorhanden. |
+| **Roadmap** | **Implemented (TV-009)** |
+| **Dependencies** | Cluster 6 (Intent Controller ✓) |
+| **MVP-Cut** | Lexikon-Only: keine OCR, kein Screenshot-Analyse |
 
-**Features:** Daily Rewards, Streaks, Lootboxen, Gacha, Battle Pass, Energy-Systeme, FOMO, Comeback-Belohnung, aggressive Pushs, Kaufdruck, Manipulationslexikon, Kinderhinweis, Reflexionsfrage.
+**Implemented:** `ManipulationPattern(id, name, category)`, `PatternCategory` enum (ENGAGEMENT / COMMERCE / URGENCY / ATTENTION / SOCIAL), `ManipulationEngine.detect(packageName)` — 15 Muster-Definitionen, 25+ erkannte App-Familien (TikTok, Instagram, YouTube, Twitter, Facebook, Reddit, Snapchat, BeReal, Duolingo, Supercell-Games, EA Mobile, Zynga, Genshin/HoYoverse, Candy Crush/King, Pokémon GO/Niantic, Roblox, Fortnite/Epic, PUBG, Free Fire, NetEase, Netflix, Spotify, LinkedIn, Dating Apps). Patterns: Streak, Daily Reward, Variable Reward, Loot Box, Gacha Pull, Battle Pass, Pay-to-Win, Energy Gate, Subscription Trap, FOMO Countdown, Comeback Reward, Endless Scroll, Autoplay, Push Flood, Social Pressure. `IntentClarifierCard` um `patterns: List<ManipulationPattern>` erweitert: Pattern-Chip-Row in RiskRed (0.08 alpha background, 0.85 alpha label, 0.25 alpha border). `AnimatedVisibility` condition: `suggestions.isNotEmpty() || patterns.isNotEmpty()`. `TaviUiState.manipulationPatterns` Flow; cleared on dismiss/launch.
+
+**Noch nicht implementiert (Phase 2):** Screenshot-OCR → Pattern-Analyse, Reflexionsfrage pro Pattern, Tap-to-Expand Pattern-Erklärung, Kinderhinweis, In-App-Druck erkennen (Notification-Flood-Patterns live), Pattern-Statistik über Zeit.
 
 ---
 

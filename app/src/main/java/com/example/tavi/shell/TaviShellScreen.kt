@@ -147,6 +147,7 @@ fun TaviShellScreen(
                     onSaveAiAsCapsule = viewModel::onSaveAiAsCapsule,
                     pendingLaunchNode = uiState.pendingLaunchNode,
                     intentSuggestions = uiState.intentSuggestions,
+                    manipulationPatterns = uiState.manipulationPatterns,
                     showIntentClarifier = uiState.showIntentClarifier,
                     onIntentSelected = viewModel::onIntentSelected,
                     onIntentClarifierDismiss = viewModel::onIntentClarifierDismiss

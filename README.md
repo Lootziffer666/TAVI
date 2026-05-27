@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Platform-Android%2024%2B-green?style=flat-square" />
   <img src="https://img.shields.io/badge/Stack-Kotlin%20%2B%20Compose-blueviolet?style=flat-square" />
   <img src="https://img.shields.io/badge/Status-Implemented%20%E2%80%94%20branch%20wL7tV-brightgreen?style=flat-square" />
-  <img src="https://img.shields.io/badge/Clusters-9%20of%2019-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Clusters-10%20of%2019-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/AI-Gemma%20%2B%20Gemini%20fallback-orange?style=flat-square" />
 </p>
 
@@ -83,6 +83,9 @@ app/src/main/java/com/example/tavi/
 ├── intent/                      Cluster 6 — Intent Controller
 │   ├── IntentSuggestion.kt      data class (label, subQuery)
 │   └── IntentClarifierEngine.kt 25+ app-category rules (O(1)); returns [] = direct launch
+├── manipulation/                Cluster 9 — Psychotricks / Manipulation Pattern Lexicon
+│   ├── ManipulationPattern.kt   data class (id, name, PatternCategory)
+│   └── ManipulationEngine.kt    15 patterns, 25+ app families; detect(packageName) → [] = no warning
 ├── quickaction/                 Cluster 18 — Quick Action Suggester
 │   └── QuickActionSuggester.kt  Stateless; suggest(ClipEntry) → OPEN_URL / DIAL / SAVE_SNIPPET / SAVE_CAPSULE
 ├── gesture/                     Cluster 13 — ohne AccessibilityService
@@ -190,6 +193,7 @@ Alle Implementierungen: `claude/intent-zen-integration-wL7tV`
 | 3 | Work Capsule Vault | Implemented — WorkCapsule + CapsuleRepository + CapsulePanel + `cap:` routing; long-press AI banner saves to capsule |
 | 5 | Handoffs | Implemented — `>bot: content` IntentRouter + handleHandoff() + ClipPanel bot icons |
 | 6 | Intent Controller | Implemented — IntentClarifierEngine (25+ app rules) + IntentClarifierCard; Capture state; direct launch for unknown apps |
+| 9 | Psychotricks | Implemented — ManipulationEngine (15 patterns, 25+ app families) + IntentClarifierCard pattern row; RiskRed chips, never blocks |
 | 11 | App Fossil Finder | Implemented — FossilDeckScreen + GardenEngine.markAsFossil() + AppCategorizer (cloud) |
 | 12 | Zen Shell / Launcher Rooms | Implemented — GardenCanvas + FocusZone + SpatialLauncherScreen |
 | 13 | Overlay / Handles / Gesture Edge | Implemented — TaviGestureRouter + SwipeEngine |
@@ -198,7 +202,7 @@ Alle Implementierungen: `claude/intent-zen-integration-wL7tV`
 | 17 | AI / Tool Handoff | Implemented — LocalAIEngine + TaviAIEngine + IntentRouter + GeminiShellExecutor wired |
 | 18 | Quick Action Suggester | Implemented — QuickActionSuggester wired into ClipPanel; URL/PHONE/snippet/capsule actions |
 | 19 | Privacy / Control / Warden | Implemented — TaviWarden + WardenScreen; emergency off clears clip history + pending actions |
-| 4, 7–10, 16 | Weitere Cluster | Roadmap |
+| 4, 7, 8, 10, 16 | Weitere Cluster | Roadmap |
 
 ---
 

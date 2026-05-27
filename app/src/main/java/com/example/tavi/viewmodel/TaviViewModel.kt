@@ -26,6 +26,8 @@ import com.example.tavi.state.TaviState
 import com.example.tavi.state.TaviStateReducer
 import com.example.tavi.intent.IntentClarifierEngine
 import com.example.tavi.intent.IntentSuggestion
+import com.example.tavi.manipulation.ManipulationEngine
+import com.example.tavi.manipulation.ManipulationPattern
 import com.example.tavi.quickaction.QuickActionSuggester
 import com.example.tavi.quickaction.QuickActionType
 import com.example.tavi.snippet.SnippetEntry
@@ -69,6 +71,7 @@ data class TaviUiState(
     val showCapsulePanel: Boolean = false,
     val pendingLaunchNode: com.example.tavi.garden.GardenNode? = null,
     val intentSuggestions: List<com.example.tavi.intent.IntentSuggestion> = emptyList(),
+    val manipulationPatterns: List<ManipulationPattern> = emptyList(),
     val showIntentClarifier: Boolean = false
 )
 
@@ -511,13 +514,15 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onNodeTap(node: GardenNode) = viewModelScope.launch {
         val suggestions = IntentClarifierEngine.suggest(node.packageName)
-        if (suggestions.isEmpty()) {
+        val patterns = ManipulationEngine.detect(node.packageName)
+        if (suggestions.isEmpty() && patterns.isEmpty()) {
             launchNode(node)
         } else {
             _state.update {
                 it.copy(
                     pendingLaunchNode = node,
                     intentSuggestions = suggestions,
+                    manipulationPatterns = patterns,
                     showIntentClarifier = true
                 )
             }
@@ -535,7 +540,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 showIntentClarifier = false,
                 pendingLaunchNode = null,
-                intentSuggestions = emptyList()
+                intentSuggestions = emptyList(),
+                manipulationPatterns = emptyList()
             )
         }
         // suggestion.subQuery intentionally unused in MVP — Phase 2 will route it as a
@@ -549,7 +555,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 showIntentClarifier = false,
                 pendingLaunchNode = null,
-                intentSuggestions = emptyList()
+                intentSuggestions = emptyList(),
+                manipulationPatterns = emptyList()
             )
         }
         // Failure behavior: in doubt, launch directly — never block the user
