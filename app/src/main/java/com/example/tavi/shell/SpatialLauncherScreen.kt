@@ -14,9 +14,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.example.tavi.capsule.CapsulePanel
+import com.example.tavi.capsule.WorkCapsule
 import com.example.tavi.clipboard.ClipEntry
 import com.example.tavi.clipboard.ClipPanel
 import com.example.tavi.garden.GardenNode
+import com.example.tavi.quickaction.QuickActionSuggester
+import com.example.tavi.quickaction.QuickActionType
+import com.example.tavi.snippet.SnippetEntry
+import com.example.tavi.snippet.SnippetPanel
 import com.example.tavi.sensor.TiltState
 import com.example.tavi.state.PendingAction
 import com.example.tavi.state.TaviState
@@ -55,6 +61,17 @@ fun SpatialLauncherScreen(
     bots: List<BotInfo> = emptyList(),
     onClipSelected: (ClipEntry) -> Unit = {},
     onClipHandoff: (botId: String, content: String) -> Unit = { _, _ -> },
+    onQuickAction: (ClipEntry, QuickActionType) -> Unit = { _, _ -> },
+    snippets: List<SnippetEntry> = emptyList(),
+    showSnippetPanel: Boolean = false,
+    onSnippetCopy: (SnippetEntry) -> Unit = {},
+    onSnippetDelete: (SnippetEntry) -> Unit = {},
+    onSnippetFavorite: (SnippetEntry) -> Unit = {},
+    capsules: List<WorkCapsule> = emptyList(),
+    showCapsulePanel: Boolean = false,
+    onCapsuleCopy: (WorkCapsule) -> Unit = {},
+    onCapsuleDelete: (WorkCapsule) -> Unit = {},
+    onSaveAiAsCapsule: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -86,9 +103,10 @@ fun SpatialLauncherScreen(
             modifier = Modifier.align(Alignment.TopCenter).zIndex(3f)
         )
 
-        // Layer 2: AI response banner
+        // Layer 2: AI response banner (long-press save to capsule)
         AIResponseBanner(
             message = aiMessage,
+            onSaveAsCapsule = if (aiMessage != null) onSaveAiAsCapsule else null,
             modifier = Modifier.align(Alignment.TopCenter).zIndex(2f).padding(top = 48.dp)
         )
 
@@ -107,6 +125,32 @@ fun SpatialLauncherScreen(
             visible = showClipPanel,
             onClipSelected = onClipSelected,
             onHandoff = onClipHandoff,
+            onQuickAction = onQuickAction,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(4f)
+                .padding(bottom = 88.dp)
+        )
+
+        // Layer 4c: Snippet panel
+        SnippetPanel(
+            snippets = snippets,
+            visible = showSnippetPanel,
+            onSnippetCopy = onSnippetCopy,
+            onSnippetDelete = onSnippetDelete,
+            onSnippetFavorite = onSnippetFavorite,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(4f)
+                .padding(bottom = 88.dp)
+        )
+
+        // Layer 4d: Capsule panel
+        CapsulePanel(
+            capsules = capsules,
+            visible = showCapsulePanel,
+            onCapsuleCopy = onCapsuleCopy,
+            onCapsuleDelete = onCapsuleDelete,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .zIndex(4f)

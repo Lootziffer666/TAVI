@@ -6,6 +6,9 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tavi.ai.*
+import com.example.tavi.capsule.CapsuleRepository
+import com.example.tavi.capsule.CapsuleSource
+import com.example.tavi.capsule.WorkCapsule
 import com.example.tavi.clipboard.ClipEntry
 import com.example.tavi.clipboard.ClipboardRepository
 import com.example.tavi.cloud.AppCategorizer
@@ -21,6 +24,10 @@ import com.example.tavi.state.PendingAction
 import com.example.tavi.state.TaviEvent
 import com.example.tavi.state.TaviState
 import com.example.tavi.state.TaviStateReducer
+import com.example.tavi.quickaction.QuickActionSuggester
+import com.example.tavi.quickaction.QuickActionType
+import com.example.tavi.snippet.SnippetEntry
+import com.example.tavi.snippet.SnippetRepository
 import com.example.tavi.warden.TaviWarden
 import com.example.tavi.workspace.BotInfo
 import com.example.tavi.workspace.BotRegistry
@@ -53,7 +60,11 @@ data class TaviUiState(
     val categoryCache: Map<String, String> = emptyMap(),
     val recentScopes: List<String> = emptyList(),
     val clipHistory: List<ClipEntry> = emptyList(),
-    val showClipPanel: Boolean = false
+    val showClipPanel: Boolean = false,
+    val snippets: List<SnippetEntry> = emptyList(),
+    val showSnippetPanel: Boolean = false,
+    val capsules: List<WorkCapsule> = emptyList(),
+    val showCapsulePanel: Boolean = false
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -73,6 +84,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private val intentRouter = IntentRouter(BotRegistry.names)
     private val selfHealEngine = SelfHealEngine()
     private val clipboardRepo = ClipboardRepository(app, prefs)
+    private val snippetRepo = SnippetRepository(prefs)
+    private val capsuleRepo = CapsuleRepository(prefs)
 
     private val geminiApiKey = BuildConfig.GEMINI_API_KEY
         .takeIf { it.isNotBlank() && it != "placeholder" } ?: ""
@@ -114,6 +127,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectWardenPrivateMode()
         collectSessionOnlyMode()
         collectClipHistory()
+        collectSnippets()
+        collectCapsules()
         initAIEngine()
     }
 
@@ -233,6 +248,18 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun collectSnippets() = viewModelScope.launch {
+        snippetRepo.snippets.collect { list ->
+            _state.update { it.copy(snippets = list) }
+        }
+    }
+
+    private fun collectCapsules() = viewModelScope.launch {
+        capsuleRepo.capsules.collect { list ->
+            _state.update { it.copy(capsules = list) }
+        }
+    }
+
     private fun initAIEngine() = viewModelScope.launch {
         prefs.aiModelPath.firstOrNull()?.let { path ->
             if (path.isNotBlank()) {
@@ -302,8 +329,19 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 is IntentRouterResult.HandoffToBot -> handleHandoff(result.botId, result.content)
                 IntentRouterResult.ShowClipboard -> {
-                    _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "", showClipPanel = true) }
+                    _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "",
+                        showClipPanel = true, showSnippetPanel = false, showCapsulePanel = false) }
                 }
+                IntentRouterResult.ShowSnippets -> {
+                    _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "",
+                        showSnippetPanel = true, showClipPanel = false, showCapsulePanel = false) }
+                }
+                is IntentRouterResult.SaveSnippet -> handleSaveSnippet(result.title)
+                IntentRouterResult.ShowCapsules -> {
+                    _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "",
+                        showCapsulePanel = true, showClipPanel = false, showSnippetPanel = false) }
+                }
+                is IntentRouterResult.SaveCapsule -> handleSaveCapsule(result.title, CapsuleSource.CLIPBOARD)
             }
         }
     }
@@ -497,6 +535,113 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onClipDismiss() = _state.update { it.copy(showClipPanel = false) }
+
+    fun onSnippetDismiss() = _state.update { it.copy(showSnippetPanel = false) }
+
+    fun onSnippetCopy(entry: SnippetEntry) {
+        val cm = getApplication<Application>()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("tavi-snippet", entry.content))
+        _state.update { it.copy(showSnippetPanel = false) }
+    }
+
+    fun onSnippetDelete(entry: SnippetEntry) = viewModelScope.launch {
+        snippetRepo.delete(entry.id)
+    }
+
+    fun onSnippetFavorite(entry: SnippetEntry) = viewModelScope.launch {
+        snippetRepo.toggleFavorite(entry.id)
+    }
+
+    private suspend fun handleSaveSnippet(title: String) {
+        if (title.isBlank()) {
+            emitEvent(TaviEvent.BlockedOccurred("Snippet title is empty"))
+            _state.update { it.copy(isThinking = false) }
+            return
+        }
+        val cm = getApplication<Application>()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val content = cm.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+        if (content.isBlank()) {
+            emitEvent(TaviEvent.BlockedOccurred("Clipboard is empty"))
+            _state.update { it.copy(isThinking = false) }
+            return
+        }
+        snippetRepo.add(SnippetEntry(title = title, content = content))
+        _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "",
+            aiMessage = "Snippet \"$title\" saved.") }
+        emitEvent(TaviEvent.AIActionReceived("save_snippet"))
+    }
+
+    fun onCapsuleDismiss() = _state.update { it.copy(showCapsulePanel = false) }
+
+    fun onCapsuleCopy(capsule: WorkCapsule) {
+        val cm = getApplication<Application>()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("tavi-capsule", capsule.content))
+        _state.update { it.copy(showCapsulePanel = false) }
+    }
+
+    fun onCapsuleDelete(capsule: WorkCapsule) = viewModelScope.launch {
+        capsuleRepo.delete(capsule.id)
+    }
+
+    fun onSaveAiAsCapsule(title: String = "AI response") = viewModelScope.launch {
+        val content = _state.value.aiMessage ?: return@launch
+        capsuleRepo.add(WorkCapsule(title = title, content = content, source = CapsuleSource.AI_RESPONSE))
+        _state.update { it.copy(aiMessage = "Saved as capsule: \"$title\"") }
+    }
+
+    private suspend fun handleSaveCapsule(title: String, source: CapsuleSource) {
+        if (title.isBlank()) {
+            emitEvent(TaviEvent.BlockedOccurred("Capsule title is empty"))
+            _state.update { it.copy(isThinking = false) }
+            return
+        }
+        val cm = getApplication<Application>()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val content = cm.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+        if (content.isBlank()) {
+            emitEvent(TaviEvent.BlockedOccurred("Clipboard is empty"))
+            _state.update { it.copy(isThinking = false) }
+            return
+        }
+        capsuleRepo.add(WorkCapsule(title = title, content = content, source = source))
+        _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "",
+            aiMessage = "Capsule \"$title\" saved.") }
+        emitEvent(TaviEvent.AIActionReceived("save_capsule"))
+    }
+
+    fun onQuickAction(entry: ClipEntry, actionType: QuickActionType) = viewModelScope.launch {
+        when (actionType) {
+            QuickActionType.OPEN_URL -> {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(entry.content)).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                runCatching { getApplication<Application>().startActivity(intent) }
+                _state.update { it.copy(showClipPanel = false) }
+            }
+            QuickActionType.DIAL -> {
+                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${entry.content}")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                runCatching { getApplication<Application>().startActivity(intent) }
+                _state.update { it.copy(showClipPanel = false) }
+            }
+            QuickActionType.SAVE_SNIPPET -> {
+                val title = entry.content.take(30).replace('\n', ' ')
+                snippetRepo.add(SnippetEntry(title = title, content = entry.content))
+                _state.update { it.copy(showClipPanel = false, aiMessage = "Saved as snippet.") }
+                emitEvent(TaviEvent.AIActionReceived("save_snippet"))
+            }
+            QuickActionType.SAVE_CAPSULE -> {
+                val title = entry.content.take(30).replace('\n', ' ')
+                capsuleRepo.add(WorkCapsule(title = title, content = entry.content, source = CapsuleSource.CLIPBOARD))
+                _state.update { it.copy(showClipPanel = false, aiMessage = "Saved as capsule.") }
+                emitEvent(TaviEvent.AIActionReceived("save_capsule"))
+            }
+        }
+    }
 
     fun onClipHandoff(botId: String, content: String) = viewModelScope.launch {
         _state.update { it.copy(showClipPanel = false) }

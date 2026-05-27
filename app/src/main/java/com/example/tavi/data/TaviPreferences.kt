@@ -25,6 +25,8 @@ class TaviPreferences(private val context: Context) {
         val SESSION_ONLY_MODE = booleanPreferencesKey("sessionOnlyMode")
         val RECENT_SCOPES_JSON = stringPreferencesKey("recentScopes")
         val CLIP_HISTORY_JSON = stringPreferencesKey("clipHistory")
+        val SNIPPETS_JSON = stringPreferencesKey("snippets")
+        val CAPSULES_JSON = stringPreferencesKey("capsules")
     }
 
     val maxFocusItems: Flow<Int> = context.dataStore.data.map { it[MAX_FOCUS_ITEMS] ?: 5 }
@@ -39,6 +41,8 @@ class TaviPreferences(private val context: Context) {
     val taviWorkspacesJson: Flow<String?> = context.dataStore.data.map { it[TAVI_WORKSPACES_JSON] }
     val sessionOnlyMode: Flow<Boolean> = context.dataStore.data.map { it[SESSION_ONLY_MODE] ?: false }
     val clipHistoryJson: Flow<String?> = context.dataStore.data.map { it[CLIP_HISTORY_JSON] }
+    val snippetsJson: Flow<String?> = context.dataStore.data.map { it[SNIPPETS_JSON] }
+    val capsulesJson: Flow<String?> = context.dataStore.data.map { it[CAPSULES_JSON] }
     val recentScopes: Flow<List<String>> = context.dataStore.data.map { prefs ->
         val json = prefs[RECENT_SCOPES_JSON] ?: return@map emptyList()
         runCatching {
@@ -75,6 +79,71 @@ class TaviPreferences(private val context: Context) {
         prefs[CLIP_HISTORY_JSON] = updated.toString()
     }
     suspend fun clearClipHistory() = context.dataStore.edit { it.remove(CLIP_HISTORY_JSON) }
+
+    suspend fun addSnippet(entry: com.example.tavi.snippet.SnippetEntry) = context.dataStore.edit { prefs ->
+        val existing = runCatching { org.json.JSONArray(prefs[SNIPPETS_JSON] ?: "[]") }.getOrDefault(org.json.JSONArray())
+        val obj = org.json.JSONObject().apply {
+            put("id", entry.id)
+            put("title", entry.title)
+            put("content", entry.content)
+            put("tags", org.json.JSONArray(entry.tags))
+            put("fav", entry.isFavorite)
+            put("ts", entry.timestamp)
+        }
+        val updated = org.json.JSONArray()
+        updated.put(obj)
+        for (i in 0 until minOf(existing.length(), 99)) updated.put(existing.getJSONObject(i))
+        prefs[SNIPPETS_JSON] = updated.toString()
+    }
+
+    suspend fun deleteSnippet(id: String) = context.dataStore.edit { prefs ->
+        val existing = runCatching { org.json.JSONArray(prefs[SNIPPETS_JSON] ?: "[]") }.getOrDefault(org.json.JSONArray())
+        val updated = org.json.JSONArray()
+        for (i in 0 until existing.length()) {
+            val obj = existing.getJSONObject(i)
+            if (obj.optString("id") != id) updated.put(obj)
+        }
+        prefs[SNIPPETS_JSON] = updated.toString()
+    }
+
+    suspend fun toggleSnippetFavorite(id: String) = context.dataStore.edit { prefs ->
+        val existing = runCatching { org.json.JSONArray(prefs[SNIPPETS_JSON] ?: "[]") }.getOrDefault(org.json.JSONArray())
+        val updated = org.json.JSONArray()
+        for (i in 0 until existing.length()) {
+            val obj = existing.getJSONObject(i)
+            if (obj.optString("id") == id) obj.put("fav", !obj.optBoolean("fav", false))
+            updated.put(obj)
+        }
+        prefs[SNIPPETS_JSON] = updated.toString()
+    }
+
+    suspend fun addCapsule(capsule: com.example.tavi.capsule.WorkCapsule) = context.dataStore.edit { prefs ->
+        val existing = runCatching { org.json.JSONArray(prefs[CAPSULES_JSON] ?: "[]") }.getOrDefault(org.json.JSONArray())
+        val obj = org.json.JSONObject().apply {
+            put("id", capsule.id)
+            put("title", capsule.title)
+            put("content", capsule.content)
+            put("src", capsule.source.name)
+            put("ts", capsule.timestamp)
+        }
+        val updated = org.json.JSONArray()
+        updated.put(obj)
+        for (i in 0 until minOf(existing.length(), 49)) updated.put(existing.getJSONObject(i))
+        prefs[CAPSULES_JSON] = updated.toString()
+    }
+
+    suspend fun deleteCapsule(id: String) = context.dataStore.edit { prefs ->
+        val existing = runCatching { org.json.JSONArray(prefs[CAPSULES_JSON] ?: "[]") }.getOrDefault(org.json.JSONArray())
+        val updated = org.json.JSONArray()
+        for (i in 0 until existing.length()) {
+            val obj = existing.getJSONObject(i)
+            if (obj.optString("id") != id) updated.put(obj)
+        }
+        prefs[CAPSULES_JSON] = updated.toString()
+    }
+
+    suspend fun clearCapsules() = context.dataStore.edit { it.remove(CAPSULES_JSON) }
+
     suspend fun addRecentScope(scope: String) = context.dataStore.edit { prefs ->
         val current = runCatching {
             val arr = JSONArray(prefs[RECENT_SCOPES_JSON] ?: "[]")

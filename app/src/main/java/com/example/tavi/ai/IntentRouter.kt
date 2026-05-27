@@ -8,6 +8,10 @@ sealed class IntentRouterResult {
     data class OpenUrl(val url: String) : IntentRouterResult()
     data class HandoffToBot(val botId: String, val content: String) : IntentRouterResult()
     object ShowClipboard : IntentRouterResult()
+    object ShowSnippets : IntentRouterResult()
+    data class SaveSnippet(val title: String) : IntentRouterResult()
+    object ShowCapsules : IntentRouterResult()
+    data class SaveCapsule(val title: String) : IntentRouterResult()
     object OpenSettings : IntentRouterResult()
 }
 
@@ -29,6 +33,16 @@ class IntentRouter(private val knownBotNames: Set<String>) {
             }
             trimmed.equals("clip:", ignoreCase = true) || trimmed.startsWith("clip: ") -> {
                 IntentRouterResult.ShowClipboard
+            }
+            trimmed.equals("snips", ignoreCase = true) || trimmed.startsWith("snip:") -> {
+                val rest = trimmed.removePrefix("snip:").trim()
+                if (rest.startsWith("save ")) IntentRouterResult.SaveSnippet(rest.removePrefix("save ").trim())
+                else IntentRouterResult.ShowSnippets
+            }
+            trimmed.equals("caps", ignoreCase = true) || trimmed.startsWith("cap:") -> {
+                val rest = trimmed.removePrefix("cap:").trim()
+                if (rest.startsWith("save ")) IntentRouterResult.SaveCapsule(rest.removePrefix("save ").trim())
+                else IntentRouterResult.ShowCapsules
             }
             trimmed.startsWith(">") -> {
                 val rest = trimmed.removePrefix(">")

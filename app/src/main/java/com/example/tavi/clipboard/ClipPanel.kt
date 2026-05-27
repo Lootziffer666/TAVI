@@ -12,6 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.tavi.quickaction.QuickActionSuggester
+import com.example.tavi.quickaction.QuickActionType
 import com.example.tavi.ui.theme.BreathBlue
 import com.example.tavi.ui.theme.DepthMid
 import com.example.tavi.ui.theme.TaviAccent
@@ -24,6 +26,7 @@ fun ClipPanel(
     visible: Boolean,
     onClipSelected: (ClipEntry) -> Unit,
     onHandoff: (botId: String, content: String) -> Unit,
+    onQuickAction: (ClipEntry, QuickActionType) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -39,7 +42,8 @@ fun ClipPanel(
                         entry = entry,
                         bots = bots,
                         onSelect = { onClipSelected(entry) },
-                        onHandoff = { botId -> onHandoff(botId, entry.content) }
+                        onHandoff = { botId -> onHandoff(botId, entry.content) },
+                        onQuickAction = { type -> onQuickAction(entry, type) }
                     )
                 }
             }
@@ -52,7 +56,8 @@ private fun ClipChip(
     entry: ClipEntry,
     bots: List<BotInfo>,
     onSelect: () -> Unit,
-    onHandoff: (botId: String) -> Unit
+    onHandoff: (botId: String) -> Unit,
+    onQuickAction: (QuickActionType) -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         SuggestionChip(
@@ -66,6 +71,19 @@ private fun ClipChip(
             },
             colors = SuggestionChipDefaults.suggestionChipColors(containerColor = DepthMid)
         )
+        // Quick action chips (Save as snippet, Save as capsule, Open URL, Dial)
+        val quickActions = QuickActionSuggester.suggest(entry)
+        if (quickActions.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                quickActions.forEach { action ->
+                    SuggestionChip(
+                        onClick = { onQuickAction(action.type) },
+                        label = { Text(action.label, style = MaterialTheme.typography.labelSmall) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = DepthMid)
+                    )
+                }
+            }
+        }
         // Handoff icons — only for URL-type clips when bots are configured
         if (entry.type == ClipType.URL && bots.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

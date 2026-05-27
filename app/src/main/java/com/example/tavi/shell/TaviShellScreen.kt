@@ -133,7 +133,18 @@ fun TaviShellScreen(
                     showClipPanel = uiState.showClipPanel,
                     bots = uiState.bots,
                     onClipSelected = viewModel::onClipSelected,
-                    onClipHandoff = viewModel::onClipHandoff
+                    onClipHandoff = viewModel::onClipHandoff,
+                    onQuickAction = viewModel::onQuickAction,
+                    snippets = uiState.snippets,
+                    showSnippetPanel = uiState.showSnippetPanel,
+                    onSnippetCopy = viewModel::onSnippetCopy,
+                    onSnippetDelete = viewModel::onSnippetDelete,
+                    onSnippetFavorite = viewModel::onSnippetFavorite,
+                    capsules = uiState.capsules,
+                    showCapsulePanel = uiState.showCapsulePanel,
+                    onCapsuleCopy = viewModel::onCapsuleCopy,
+                    onCapsuleDelete = viewModel::onCapsuleDelete,
+                    onSaveAiAsCapsule = viewModel::onSaveAiAsCapsule
                 )
                 else -> BotWorkspaceScreen(bot = uiState.bots[page - 2])
             }
