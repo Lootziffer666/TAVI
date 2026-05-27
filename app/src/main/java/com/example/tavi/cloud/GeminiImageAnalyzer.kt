@@ -19,6 +19,7 @@ class GeminiImageAnalyzer(
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: error("Cannot open image")
             val bitmap = BitmapFactory.decodeStream(inputStream).also { inputStream.close() }
+                ?: error("Cannot decode image")
             analyzeInternal(bitmap, prompt)
         }
     }

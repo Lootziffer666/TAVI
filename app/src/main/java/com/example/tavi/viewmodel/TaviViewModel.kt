@@ -847,12 +847,16 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onParkClip(entry: ClipEntry) = viewModelScope.launch {
+        val packageName = runCatching { android.net.Uri.parse(entry.content).getQueryParameter("id") }
+            .getOrNull() ?: ""
+        val host = runCatching {
+            android.net.Uri.parse(entry.content).host ?: ""
+        }.getOrDefault("")
         val hints = com.example.tavi.manipulation.ManipulationEngine
-            .detect(entry.content.substringAfterLast("/").substringBefore("?"))
+            .detect(packageName.ifBlank { host })
             .map { it.name }
         val subCost = com.example.tavi.subscription.SubscriptionScanner
-            .scan(listOf(entry.content.removePrefix("https://").removePrefix("http://")
-                .split("/").firstOrNull() ?: ""))
+            .scan(listOf(packageName.ifBlank { host }))
             .firstOrNull()?.estimatedCost
         val title = entry.content.take(40).replace('\n', ' ')
         wantShelfRepo.add(WantItem(title = title, content = entry.content,

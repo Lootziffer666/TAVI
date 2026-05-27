@@ -81,6 +81,7 @@ class GameSessionService : Service() {
 
         val mp = getSystemService(MediaProjectionManager::class.java)
             .getMediaProjection(resultCode, resultData)
+            ?: run { stopSelf(); return START_NOT_STICKY }
         mediaProjection = mp
         startCapture(mp, interval)
 
