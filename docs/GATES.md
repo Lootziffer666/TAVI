@@ -7,6 +7,7 @@
 | TV-003 | Opus Product Planning Map | Complete — CLUSTER_MAP.md merged, 19 clusters defined |
 | TV-004 | First Prototype Cluster | Complete — branch `claude/intent-zen-integration-wL7tV` |
 | TV-005 | QoL Refinery + Clusters 15 / 1 / 5 | Complete — same branch, 4 commits |
+| TV-006 | Clusters 2 / 18 / 3: Snippet Capsule, Work Capsule MVP, QuickActions | Complete — same branch, 1 commit |
 
 ## TV-004 Delivery Summary
 
@@ -112,3 +113,57 @@ Goal: eliminate "stated but never proven" — every declared feature now runs en
 - Clipboard history: in-memory only in private/session-only mode; cleared on emergency off
 - Warden gates respected for all new features (botWorkspacesEnabled, isSessionOnlyMode)
 - State Grammar: `RiskDetected` drives `ActionPreflightCard` anchor; `Blocked` on empty clipboard / unknown bot
+
+---
+
+## TV-006 Delivery Summary
+
+Branch: `claude/intent-zen-integration-wL7tV` (1 commit on top of TV-005)
+
+Goal: implement the next three clusters in dependency order — Cluster 2 (builds on 1), Cluster 18 (builds on 1), Cluster 3 (builds on 1+5).
+
+### Cluster 2 — Snippet Capsule
+
+| Cluster | Key Files | Status |
+|---|---|---|
+| 2 — Snippet Capsule | `snippet/SnippetEntry.kt`, `snippet/SnippetRepository.kt`, `snippet/SnippetPanel.kt` | Complete |
+
+- `SnippetEntry(id, title, content, tags, isFavorite, timestamp)` data class
+- `SnippetRepository`: reads/writes via `TaviPreferences.SNIPPETS_JSON` (max 100)
+- `SnippetPanel`: `AnimatedVisibility` Card + `LazyColumn`; favorites sorted first; Copy / Delete / Favorite buttons; empty state hint
+- `IntentRouter`: `snip:save <title>` → `SaveSnippet`, `snips` → `ShowSnippets`
+- `TaviUiState`: `snippets: List<SnippetEntry>`, `showSnippetPanel: Boolean`
+- `TaviViewModel`: `collectSnippets()`, `onSnippetCopy/Delete/Favorite/Dismiss()`
+- `SpatialLauncherScreen`: `SnippetPanel` at zIndex 4 (mutual exclusion with ClipPanel + CapsulePanel)
+
+### Cluster 18 — Work Capsule MVP
+
+| Cluster | Key Files | Status |
+|---|---|---|
+| 18 — Work Capsule | `capsule/WorkCapsule.kt`, `capsule/CapsuleRepository.kt`, `capsule/CapsulePanel.kt` | Complete |
+
+- `WorkCapsule(id, title, content, source: CapsuleSource, timestamp)` + `CapsuleSource` enum (CLIPBOARD / AI_RESPONSE / MANUAL)
+- `CapsuleRepository`: reads/writes via `TaviPreferences.CAPSULES_JSON` (max 50)
+- `CapsulePanel`: BreathBlue color scheme; source badge + timestamp; Copy + Delete per row
+- `AIResponseBanner`: "Save as capsule" `TextButton` visible when `onSaveAsCapsule != null`
+- `TaviViewModel`: `onSaveAiAsCapsule()` wraps current `aiMessage` as `CapsuleSource.AI_RESPONSE`
+- `IntentRouter`: `cap:save <title>` → `SaveCapsule`, `caps` → `ShowCapsules`
+
+### Cluster 3 — QuickActions (MVP)
+
+| Cluster | Key Files | Status |
+|---|---|---|
+| 3 — QuickActions | `quickaction/QuickActionSuggester.kt` | Complete |
+
+- `QuickActionType` enum: `OPEN_URL`, `DIAL`, `SAVE_SNIPPET`, `SAVE_CAPSULE`
+- `QuickActionSuggester.suggest(entry)`: enum-based (no regex), O(1) per call
+- `ClipPanel.ClipChip`: QuickAction chips rendered below each clip; `onQuickAction` param added
+- `TaviViewModel.onQuickAction()`: dispatches to URL open / dial intent / save-as-snippet / save-as-capsule
+
+### Hard constraints re-verified
+
+- No AccessibilityService — unchanged
+- Anti-Dashboard: SnippetPanel / CapsulePanel / ClipPanel are mutually exclusive (only one visible at a time)
+- Session-only mode respected: snippet/capsule writes skip DataStore; in-memory only
+- No new permissions introduced
+- State Grammar: panels are UI state, not TaviState transitions; `Blocked` still the correct state on empty panel

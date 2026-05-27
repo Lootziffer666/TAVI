@@ -1,7 +1,7 @@
 # TAVI Cluster Map — 19 Cluster mit Slot Contracts
 
-**Stand:** 2026-05-26 (aktualisiert nach TV-005 Delivery)
-**Status:** Cluster 1, 5, 11, 12, 13, 14, 15, 17, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
+**Stand:** 2026-05-27 (aktualisiert nach TV-006 Delivery)
+**Status:** Cluster 1, 2, 3, 5, 11, 12, 13, 14, 15, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
 **Schema:** Jeder Cluster folgt dem Slot Contract aus `CONCEPT_CONTRACT.md` (Name, Purpose, User State, Input, Output, Visible Surface, Failure Behavior) plus Roadmap-Status, Dependencies und MVP-Cut-Empfehlung.
 
 ---
@@ -11,6 +11,8 @@
 | Cluster | Name | Status |
 |---|---|---|
 | 1 | Clipboard / Transfer Layer | **Implemented** — ClipboardRepository + ClipPanel + TaviPreferences keys |
+| 2 | Snippet Capsule | **Implemented** — SnippetEntry + SnippetRepository + SnippetPanel + IntentRouter snip: |
+| 3 | QuickActions / Kontextaktionen | **Implemented** — QuickActionSuggester + ClipPanel action chips |
 | 5 | Handoffs | **Implemented** — IntentRouter `>` prefix + handleHandoff() + ClipPanel bot icons |
 | 11 | App Fossil Finder | **Implemented** — FossilDeckScreen + GardenEngine.markAsFossil() + AppCategorizer |
 | 12 | Zen Shell / Launcher Rooms | **Implemented** — GardenCanvas + FocusZone + SpatialLauncherScreen |
@@ -18,8 +20,9 @@
 | 14 | State Grammar / One Anchor | **Implemented** — TaviState + TaviStateReducer + StateAnchor |
 | 15 | Safe Action Buffer | **Implemented** — PendingAction + ActionPreflightCard + preflight routing |
 | 17 | AI / Tool Handoff | **Implemented** — LocalAIEngine + TaviAIEngine + IntentRouter + GeminiShellExecutor |
+| 18 | Work Capsule | **Implemented** — WorkCapsule + CapsuleRepository + CapsulePanel + AIResponseBanner save button |
 | 19 | Privacy / Control / Warden | **Implemented** — TaviWarden + WardenScreen |
-| 2–4, 6–10, 16, 18 | Weitere Cluster | Roadmap |
+| 4, 6–10, 16 | Weitere Cluster | Roadmap |
 
 ---
 
@@ -29,6 +32,7 @@
 **Roadmap (7):** Cluster 6, 7, 10, 12, 13, 16, 17
 **Implementiert (TV-004):** Cluster 11, 12, 13, 14, 17, 19
 **Implementiert (TV-005):** Cluster 1, 5, 15 — plus QoL-Verbesserungen, Refinery
+**Implementiert (TV-006):** Cluster 2, 18, 3 — Snippet Capsule, Work Capsule MVP, QuickActions
 
 **Empfohlener MVP-Schnitt (5 Cluster):** 1 Clipboard, 2 Snippets, 5 Handoffs, 14 State Grammar, 19 Privacy/Warden. Alles andere ist Phase 2+.
 
@@ -55,41 +59,45 @@
 
 ---
 
-## Cluster 2 — Snippet Capsule
+## Cluster 2 — Snippet Capsule ✓ Implemented
 
 | Feld | Inhalt |
 |---|---|
 | **Name** | Snippet Capsule |
 | **Purpose** | Wiederkehrende Texte und Arbeitsbausteine griffbereit machen |
 | **User State** | „Ich brauche denselben Baustein wieder" |
-| **Input** | Text, Auswahl, Chat-Output, Datei |
-| **Output** | kopierter / speicherbarer Baustein |
-| **Visible Surface** | Snippet Panel, Suchfläche, Favoriten |
-| **Failure Behavior** | Baustein bleibt als Datei / Eintrag verfügbar |
-| **Roadmap** | Prototype now |
+| **Input** | Text, Auswahl, Chat-Output — via `snip:save <title>` oder `snips` |
+| **Output** | SnippetPanel: Favoriten zuerst, copy/delete/favorite pro Eintrag |
+| **Visible Surface** | SnippetPanel (AnimatedVisibility Card + LazyColumn, zIndex 4) |
+| **Failure Behavior** | DataStore persistiert; session-only mode: nur in-memory |
+| **Roadmap** | **Implemented (TV-006)** |
 | **Dependencies** | Cluster 1 (Clipboard) |
-| **MVP-Cut** | enthalten — Christian nutzt das in Borderline schon |
+| **MVP-Cut** | enthalten |
 
-**Features:** Prompt-Snippets, Projekt-Snippets, Antwort-Snippets, Markdown-Snippets, Recovery-Snippets, Agenten-Aufträge, Kategorien, Favoriten, Suche, Varianten, Snippet aus Auswahl/Chat erzeugen.
+**Implemented:** `SnippetEntry(id, title, content, tags, isFavorite, timestamp)`, `SnippetRepository` (DataStore via TaviPreferences; max 100 entries), `SnippetPanel` composable (favorites sorted first; Copy, Delete, Favorite buttons per row; empty state hint), `IntentRouter.ShowSnippets` + `SaveSnippet(title)` via `snip:`/`snips` prefix, TaviViewModel `collectSnippets()` + `onSnippetCopy/Delete/Favorite/Dismiss()`.
+
+**Noch nicht implementiert (Phase 2):** Volltext-Suche, Tags-Filter, Snippet aus Chat-Output direkt speichern, Markdown-Preview.
 
 ---
 
-## Cluster 3 — QuickActions / Kontextaktionen
+## Cluster 3 — QuickActions / Kontextaktionen ✓ Implemented (MVP)
 
 | Feld | Inhalt |
 |---|---|
 | **Name** | QuickActions |
 | **Purpose** | aus erkanntem Kontext kurze sinnvolle Aktionen machen |
 | **User State** | „Hier steht etwas, was eigentlich eine Handlung ist" |
-| **Input** | Text, Clipboard, Share, später Screenshot |
-| **Output** | kleine Aktionsauswahl |
-| **Visible Surface** | Mini-Panel, Kontextmenü |
-| **Failure Behavior** | keine sichere Aktion erkannt → manuelle Auswahl |
-| **Roadmap** | Prototype now |
+| **Input** | ClipEntry mit erkanntem Typ (URL/PHONE/CODE/TEXT) |
+| **Output** | Chip-Reihe unter jedem Clip in ClipPanel |
+| **Visible Surface** | ClipPanel — pro Clip eine QuickAction-Chip-Row |
+| **Failure Behavior** | keine Aktion erkannt → nur Save-as-Snippet/Capsule Chips |
+| **Roadmap** | **Implemented (TV-006)** |
 | **Dependencies** | Cluster 1 (Clipboard), Cluster 5 (Handoffs) |
-| **MVP-Cut** | nach MVP — braucht stabile Pattern-Erkennung |
+| **MVP-Cut** | enthalten — enumbasiert, keine externe Pattern-Erkennung |
 
-**Features:** Adresse → Maps/CatchIt/kopieren, Telefonnummer → anrufen/speichern, Datum/Uhrzeit → Kalender/Erinnerung, Betrag/IBAN → kopieren/prüfen/merken, Link → öffnen/speichern/zusammenfassen, Rezept → Einkaufsliste/Notiz, Rechnung → Betrag/Fälligkeit/PDF, Code/Fehler → erklären/suchen/Agentenprompt.
+**Implemented:** `QuickActionSuggester.suggest(entry: ClipEntry): List<QuickAction>` — enum-based: URL → OPEN_URL + SAVE_SNIPPET + SAVE_CAPSULE, PHONE → DIAL + SAVE_SNIPPET + SAVE_CAPSULE, else → SAVE_SNIPPET + SAVE_CAPSULE. `QuickActionType` enum. `ClipPanel.ClipChip` zeigt QuickAction-Chips unterhalb des Content-Chips. `TaviViewModel.onQuickAction()` dispatcht auf `handleOpenUrl()`, `handleDial()`, `handleSaveSnippet()`, `handleSaveCapsule()`.
+
+**Noch nicht implementiert (Phase 2):** Screenshot-OCR → Kontext-Erkennung, Adresse → Maps, Datum/Uhrzeit → Kalender, IBAN/Betrag-Pattern, Code-Fehler → Agentenprompt.
 
 ---
 
@@ -373,22 +381,24 @@
 
 ---
 
-## Cluster 18 — Work Capsule / Artifact
+## Cluster 18 — Work Capsule / Artifact ✓ Implemented (MVP)
 
 | Feld | Inhalt |
 |---|---|
 | **Name** | Work Capsule |
 | **Purpose** | laufende Arbeitszustände einfrieren |
 | **User State** | „Ich darf diesen Stand nicht verlieren" |
-| **Input** | Text, Datei, Chat-Output, Status, Handoff |
-| **Output** | Capsule, Markdown, Datei, Verweis |
-| **Visible Surface** | Work Room, Artifact Panel |
-| **Failure Behavior** | Datei / Verweis statt Verlust |
-| **Roadmap** | Prototype now / Roadmap |
-| **Dependencies** | Cluster 1 (Clipboard), Storage-Backend |
-| **MVP-Cut** | reduzierte Variante im MVP — nur Markdown-Capsules |
+| **Input** | AI-Response (Save-Button), ClipEntry (via QuickAction), manuell via `cap:save <title>` |
+| **Output** | CapsulePanel: kopierbar, löschbar; Quelle + Timestamp |
+| **Visible Surface** | CapsulePanel (AnimatedVisibility Card + LazyColumn, zIndex 4); AIResponseBanner Save-Button |
+| **Failure Behavior** | DataStore persistiert; max 50 Capsules; session-only: nur in-memory |
+| **Roadmap** | **Implemented (TV-006)** |
+| **Dependencies** | Cluster 1 (Clipboard), DataStore |
+| **MVP-Cut** | enthalten — reduzierte Markdown-only Variante |
 
-**Features:** Markdown-Artefakte speichern, Artefakt zu Clipboard, Artefakt zu GitHub, Quelle markieren, Naming-Schema, FLOWINPUT-Export nur außerhalb TAVI-Kontext, Dokument-Fallback, Spec-Sammlung, Raw/Final/Discarded, Quelle behalten, PDF/DOCX/MD-Umwandlung, Repo-ready Ausgabe.
+**Implemented:** `WorkCapsule(id, title, content, source: CapsuleSource, timestamp)`, `CapsuleSource` enum (CLIPBOARD / AI_RESPONSE / MANUAL), `CapsuleRepository` (DataStore via TaviPreferences; max 50 entries), `CapsulePanel` composable (BreathBlue color scheme; Copy + Delete per row; source badge + formatted timestamp), `IntentRouter.ShowCapsules` + `SaveCapsule(title)` via `cap:`/`caps` prefix, `AIResponseBanner` "Save as capsule" TextButton, `TaviViewModel.onSaveAiAsCapsule()` + `collectCapsules()` + `onCapsuleCopy/Delete/Dismiss()`.
+
+**Noch nicht implementiert (Phase 2):** GitHub-Export, PDF/DOCX-Umwandlung, Quelle-Anhang, Repo-ready Ausgabe, Naming-Schema-Chooser.
 
 ---
 
