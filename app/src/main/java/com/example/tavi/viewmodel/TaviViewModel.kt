@@ -12,8 +12,13 @@ import com.example.tavi.capsule.WorkCapsule
 import com.example.tavi.clipboard.ClipEntry
 import com.example.tavi.clipboard.ClipboardRepository
 import com.example.tavi.cloud.AppCategorizer
+import com.example.tavi.cloud.GeminiImageAnalyzer
 import com.example.tavi.cloud.GeminiShellExecutor
 import com.example.tavi.cloud.RetrofitClient
+import com.example.tavi.notification.NotificationRule
+import com.example.tavi.notification.NotificationRuleRepository
+import com.example.tavi.subscription.SubscriptionInfo
+import com.example.tavi.subscription.SubscriptionScanner
 import com.example.tavi.data.TaviDatabase
 import com.example.tavi.data.TaviPreferences
 import com.example.tavi.garden.*
@@ -72,7 +77,11 @@ data class TaviUiState(
     val pendingLaunchNode: com.example.tavi.garden.GardenNode? = null,
     val intentSuggestions: List<com.example.tavi.intent.IntentSuggestion> = emptyList(),
     val manipulationPatterns: List<ManipulationPattern> = emptyList(),
-    val showIntentClarifier: Boolean = false
+    val showIntentClarifier: Boolean = false,
+    val captureImageRequested: Boolean = false,
+    val captureImagePrompt: String = "",
+    val notificationRules: List<NotificationRule> = emptyList(),
+    val detectedSubscriptions: List<SubscriptionInfo> = emptyList()
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -111,6 +120,10 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         if (geminiApiKey.isNotBlank()) GeminiShellExecutor(RetrofitClient.geminiService, geminiApiKey) else null
     private val appCategorizer: AppCategorizer? =
         if (geminiApiKey.isNotBlank()) AppCategorizer(RetrofitClient.geminiService, geminiApiKey) else null
+    private val imageAnalyzer: GeminiImageAnalyzer? =
+        if (geminiApiKey.isNotBlank()) GeminiImageAnalyzer(RetrofitClient.geminiService, geminiApiKey, app) else null
+
+    private val notificationRuleRepo = NotificationRuleRepository(prefs)
 
     private val _state = MutableStateFlow(TaviUiState())
     val state: StateFlow<TaviUiState> = _state.asStateFlow()
@@ -137,6 +150,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectClipHistory()
         collectSnippets()
         collectCapsules()
+        collectNotificationRules()
         initAIEngine()
     }
 
@@ -268,6 +282,12 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun collectNotificationRules() = viewModelScope.launch {
+        notificationRuleRepo.rules.collect { rules ->
+            _state.update { it.copy(notificationRules = rules) }
+        }
+    }
+
     private fun initAIEngine() = viewModelScope.launch {
         prefs.aiModelPath.firstOrNull()?.let { path ->
             if (path.isNotBlank()) {
@@ -350,6 +370,14 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                         showCapsulePanel = true, showClipPanel = false, showSnippetPanel = false) }
                 }
                 is IntentRouterResult.SaveCapsule -> handleSaveCapsule(result.title, CapsuleSource.CLIPBOARD)
+                is IntentRouterResult.CaptureImage -> {
+                    _state.update {
+                        it.copy(
+                            isThinking = false, isOrbExpanded = false, promptText = "",
+                            captureImageRequested = true, captureImagePrompt = result.prompt
+                        )
+                    }
+                }
             }
         }
     }
@@ -731,7 +759,46 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearTargetPage() = _state.update { it.copy(targetPage = null) }
 
-    fun onWardenToggle() = _state.update { it.copy(showWarden = !it.showWarden) }
+    fun clearCaptureImageRequest() = _state.update { it.copy(captureImageRequested = false) }
+
+    fun onImageSelected(uri: android.net.Uri) = viewModelScope.launch {
+        val cloudEnabled = warden.isCloudAiEnabled.firstOrNull() ?: false
+        if (!cloudEnabled || imageAnalyzer == null) {
+            emitEvent(TaviEvent.BlockedOccurred("Cloud AI not enabled"))
+            return@launch
+        }
+        val prompt = _state.value.captureImagePrompt.ifBlank {
+            "Extract the intent and actionable information from this image."
+        }
+        _state.update { it.copy(isThinking = true, captureImagePrompt = "") }
+        imageAnalyzer.analyze(uri, prompt).fold(
+            onSuccess = { result ->
+                _state.update { it.copy(isThinking = false, aiMessage = result) }
+                emitEvent(TaviEvent.AIResponseReceived)
+            },
+            onFailure = {
+                _state.update { it.copy(isThinking = false) }
+                emitEvent(TaviEvent.BlockedOccurred("Image analysis failed"))
+            }
+        )
+    }
+
+    fun onNotificationRuleToggle(id: String) = viewModelScope.launch {
+        notificationRuleRepo.toggleRule(id)
+    }
+
+    fun onWardenToggle() {
+        val willShow = !_state.value.showWarden
+        _state.update { it.copy(showWarden = willShow) }
+        if (willShow) {
+            viewModelScope.launch {
+                val pm = getApplication<Application>().packageManager
+                val installed = pm.getInstalledApplications(0).map { it.packageName }
+                val subs = SubscriptionScanner.scan(installed)
+                _state.update { it.copy(detectedSubscriptions = subs) }
+            }
+        }
+    }
 
     fun onSelfHealRequested() {
         val currentState = _state.value

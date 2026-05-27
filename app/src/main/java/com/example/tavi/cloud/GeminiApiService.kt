@@ -6,7 +6,10 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 @JsonClass(generateAdapter = true)
-data class GeminiPart(val text: String)
+data class GeminiInlineData(val mimeType: String, val data: String)
+
+@JsonClass(generateAdapter = true)
+data class GeminiPart(val text: String? = null, val inlineData: GeminiInlineData? = null)
 
 @JsonClass(generateAdapter = true)
 data class GeminiContent(val parts: List<GeminiPart>, val role: String = "user")

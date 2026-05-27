@@ -2,6 +2,8 @@ package com.example.tavi.shell
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +35,17 @@ fun TaviShellScreen(
     val scope = rememberCoroutineScope()
     val gestureRouter = remember { TaviGestureRouter() }
     val context = LocalContext.current
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.onImageSelected(it) } }
+
+    LaunchedEffect(uiState.captureImageRequested) {
+        if (uiState.captureImageRequested) {
+            imagePickerLauncher.launch("image/*")
+            viewModel.clearCaptureImageRequest()
+        }
+    }
 
     LaunchedEffect(uiState.targetPage) {
         uiState.targetPage?.let { page ->
@@ -162,6 +175,9 @@ fun TaviShellScreen(
                 warden = warden,
                 onClose = viewModel::onWardenToggle,
                 moduleHealth = uiState.moduleHealth,
+                notificationRules = uiState.notificationRules,
+                onRuleToggle = viewModel::onNotificationRuleToggle,
+                detectedSubscriptions = uiState.detectedSubscriptions,
                 modifier = Modifier.fillMaxSize()
             )
         }

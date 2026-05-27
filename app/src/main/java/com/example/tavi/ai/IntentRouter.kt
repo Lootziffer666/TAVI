@@ -13,6 +13,7 @@ sealed class IntentRouterResult {
     object ShowCapsules : IntentRouterResult()
     data class SaveCapsule(val title: String) : IntentRouterResult()
     object OpenSettings : IntentRouterResult()
+    data class CaptureImage(val prompt: String) : IntentRouterResult()
 }
 
 class IntentRouter(private val knownBotNames: Set<String>) {
@@ -53,6 +54,12 @@ class IntentRouter(private val knownBotNames: Set<String>) {
                     rest.trim().lowercase() to ""
                 }
                 IntentRouterResult.HandoffToBot(botId, content)
+            }
+            trimmed.equals("img:", ignoreCase = true) || trimmed.startsWith("img: ") ||
+            (trimmed.startsWith("img:") && trimmed.length > 4) -> {
+                val prompt = trimmed.removePrefix("img:").trim()
+                    .ifBlank { "Extract the intent and actionable information from this image." }
+                IntentRouterResult.CaptureImage(prompt)
             }
             trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
                 IntentRouterResult.OpenUrl(trimmed)
