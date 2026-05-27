@@ -144,7 +144,12 @@ fun TaviShellScreen(
                     showCapsulePanel = uiState.showCapsulePanel,
                     onCapsuleCopy = viewModel::onCapsuleCopy,
                     onCapsuleDelete = viewModel::onCapsuleDelete,
-                    onSaveAiAsCapsule = viewModel::onSaveAiAsCapsule
+                    onSaveAiAsCapsule = viewModel::onSaveAiAsCapsule,
+                    pendingLaunchNode = uiState.pendingLaunchNode,
+                    intentSuggestions = uiState.intentSuggestions,
+                    showIntentClarifier = uiState.showIntentClarifier,
+                    onIntentSelected = viewModel::onIntentSelected,
+                    onIntentClarifierDismiss = viewModel::onIntentClarifierDismiss
                 )
                 else -> BotWorkspaceScreen(bot = uiState.bots[page - 2])
             }

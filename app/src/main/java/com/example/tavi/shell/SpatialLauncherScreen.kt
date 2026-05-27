@@ -19,6 +19,7 @@ import com.example.tavi.capsule.WorkCapsule
 import com.example.tavi.clipboard.ClipEntry
 import com.example.tavi.clipboard.ClipPanel
 import com.example.tavi.garden.GardenNode
+import com.example.tavi.intent.IntentSuggestion
 import com.example.tavi.quickaction.QuickActionSuggester
 import com.example.tavi.quickaction.QuickActionType
 import com.example.tavi.snippet.SnippetEntry
@@ -72,6 +73,11 @@ fun SpatialLauncherScreen(
     onCapsuleCopy: (WorkCapsule) -> Unit = {},
     onCapsuleDelete: (WorkCapsule) -> Unit = {},
     onSaveAiAsCapsule: () -> Unit = {},
+    pendingLaunchNode: GardenNode? = null,
+    intentSuggestions: List<IntentSuggestion> = emptyList(),
+    showIntentClarifier: Boolean = false,
+    onIntentSelected: (IntentSuggestion) -> Unit = {},
+    onIntentClarifierDismiss: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -180,7 +186,22 @@ fun SpatialLauncherScreen(
             }
         }
 
-        // Layer 5: Risk preflight — shown over everything when a dangerous action is pending
+        // Layer 5a: Intent clarifier — Capture state anchor; "what are you here for?"
+        if (pendingLaunchNode != null && taviState is TaviState.Capture) {
+            IntentClarifierCard(
+                node = pendingLaunchNode,
+                suggestions = intentSuggestions,
+                visible = showIntentClarifier,
+                onSuggestionSelected = onIntentSelected,
+                onSkip = onIntentClarifierDismiss,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(5f)
+                    .padding(bottom = 88.dp)
+            )
+        }
+
+        // Layer 5b: Risk preflight — shown over everything when a dangerous action is pending
         if (pendingAction != null && taviState is TaviState.RiskDetected) {
             ActionPreflightCard(
                 action = pendingAction,

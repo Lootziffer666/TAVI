@@ -8,6 +8,8 @@
 | TV-004 | First Prototype Cluster | Complete — branch `claude/intent-zen-integration-wL7tV` |
 | TV-005 | QoL Refinery + Clusters 15 / 1 / 5 | Complete — same branch, 4 commits |
 | TV-006 | Clusters 2 / 18 / 3: Snippet Capsule, Work Capsule MVP, QuickActions | Complete — same branch, 1 commit |
+| TV-SL | Spatial Launcher Design Lock | **Open** — spec in `docs/SPATIAL_LAUNCHER_GATE.md`; closes when SL-01 through SL-12 pass |
+| TV-007 | Cluster 6: Intent Controller | Complete — same branch |
 
 ## TV-004 Delivery Summary
 

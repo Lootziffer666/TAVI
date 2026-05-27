@@ -24,6 +24,8 @@ import com.example.tavi.state.PendingAction
 import com.example.tavi.state.TaviEvent
 import com.example.tavi.state.TaviState
 import com.example.tavi.state.TaviStateReducer
+import com.example.tavi.intent.IntentClarifierEngine
+import com.example.tavi.intent.IntentSuggestion
 import com.example.tavi.quickaction.QuickActionSuggester
 import com.example.tavi.quickaction.QuickActionType
 import com.example.tavi.snippet.SnippetEntry
@@ -64,7 +66,10 @@ data class TaviUiState(
     val snippets: List<SnippetEntry> = emptyList(),
     val showSnippetPanel: Boolean = false,
     val capsules: List<WorkCapsule> = emptyList(),
-    val showCapsulePanel: Boolean = false
+    val showCapsulePanel: Boolean = false,
+    val pendingLaunchNode: com.example.tavi.garden.GardenNode? = null,
+    val intentSuggestions: List<com.example.tavi.intent.IntentSuggestion> = emptyList(),
+    val showIntentClarifier: Boolean = false
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -505,6 +510,47 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onNodeTap(node: GardenNode) = viewModelScope.launch {
+        val suggestions = IntentClarifierEngine.suggest(node.packageName)
+        if (suggestions.isEmpty()) {
+            launchNode(node)
+        } else {
+            _state.update {
+                it.copy(
+                    pendingLaunchNode = node,
+                    intentSuggestions = suggestions,
+                    showIntentClarifier = true,
+                    taviState = TaviState.Capture
+                )
+            }
+        }
+    }
+
+    fun onIntentSelected(suggestion: IntentSuggestion) = viewModelScope.launch {
+        val node = _state.value.pendingLaunchNode ?: return@launch
+        _state.update {
+            it.copy(
+                showIntentClarifier = false,
+                pendingLaunchNode = null,
+                intentSuggestions = emptyList()
+            )
+        }
+        launchNode(node)
+    }
+
+    fun onIntentClarifierDismiss() = viewModelScope.launch {
+        val node = _state.value.pendingLaunchNode ?: return@launch
+        _state.update {
+            it.copy(
+                showIntentClarifier = false,
+                pendingLaunchNode = null,
+                intentSuggestions = emptyList()
+            )
+        }
+        // Failure behavior: in doubt, launch directly — never block the user
+        launchNode(node)
+    }
+
+    private suspend fun launchNode(node: GardenNode) {
         gardenEngine.recordLaunch(node.packageName)
         val pm = getApplication<Application>().packageManager
         val intent = pm.getLaunchIntentForPackage(node.packageName)?.apply {

@@ -1,7 +1,7 @@
 # TAVI Cluster Map — 19 Cluster mit Slot Contracts
 
-**Stand:** 2026-05-27 (aktualisiert nach TV-006 Delivery)
-**Status:** Cluster 1, 2, 3, 5, 11, 12, 13, 14, 15, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
+**Stand:** 2026-05-27 (aktualisiert nach TV-007 Delivery)
+**Status:** Cluster 1, 2, 3, 5, 6, 11, 12, 13, 14, 15, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
 **Schema:** Jeder Cluster folgt dem Slot Contract aus `CONCEPT_CONTRACT.md` (Name, Purpose, User State, Input, Output, Visible Surface, Failure Behavior) plus Roadmap-Status, Dependencies und MVP-Cut-Empfehlung.
 
 ---
@@ -14,6 +14,7 @@
 | 2 | Snippet Capsule | **Implemented** — SnippetEntry + SnippetRepository + SnippetPanel + IntentRouter snip: |
 | 3 | QuickActions / Kontextaktionen | **Implemented** — QuickActionSuggester + ClipPanel action chips |
 | 5 | Handoffs | **Implemented** — IntentRouter `>` prefix + handleHandoff() + ClipPanel bot icons |
+| 6 | Intent Controller | **Implemented** — IntentClarifierEngine + IntentClarifierCard + TaviState.Capture |
 | 11 | App Fossil Finder | **Implemented** — FossilDeckScreen + GardenEngine.markAsFossil() + AppCategorizer |
 | 12 | Zen Shell / Launcher Rooms | **Implemented** — GardenCanvas + FocusZone + SpatialLauncherScreen |
 | 13 | Overlay / Handles / Gesture Edge | **Implemented** — TaviGestureRouter + SwipeEngine |
@@ -33,6 +34,7 @@
 **Implementiert (TV-004):** Cluster 11, 12, 13, 14, 17, 19
 **Implementiert (TV-005):** Cluster 1, 5, 15 — plus QoL-Verbesserungen, Refinery
 **Implementiert (TV-006):** Cluster 2, 18, 3 — Snippet Capsule, Work Capsule MVP, QuickActions
+**Implementiert (TV-007):** Cluster 6 — Intent Controller (MVP: rule-based clarifier, skip-to-launch)
 
 **Empfohlener MVP-Schnitt (5 Cluster):** 1 Clipboard, 2 Snippets, 5 Handoffs, 14 State Grammar, 19 Privacy/Warden. Alles andere ist Phase 2+.
 
@@ -141,22 +143,24 @@
 
 ---
 
-## Cluster 6 — Intent Controller
+## Cluster 6 — Intent Controller ✓ Implemented (MVP)
 
 | Feld | Inhalt |
 |---|---|
 | **Name** | Intent Controller |
 | **Purpose** | zwischen Impuls und Aktion eine klärende Schwelle setzen |
 | **User State** | „Ich öffne etwas, aber vielleicht ohne klares Ziel" |
-| **Input** | App-Start, Share, Shortcut, Kontext |
-| **Output** | weiterlassen, fragen, parken, umlenken |
-| **Visible Surface** | Preflight, Launcher-Schicht |
-| **Failure Behavior** | im Zweifel weiterlassen, nicht blockieren |
-| **Roadmap** | Roadmap |
-| **Dependencies** | Cluster 12 (Zen Shell), Cluster 13 (Gesture Edge), Cluster 14 (State Grammar) |
-| **MVP-Cut** | nicht im MVP — braucht Cluster 12 + 13 als Hosts |
+| **Input** | Node-Tap in FocusZone — packageName matched against rule table |
+| **Output** | `IntentClarifierCard`: App-Icon, "What are you here for?", Suggestion-Chips, Skip-Button |
+| **Visible Surface** | `IntentClarifierCard` (AnimatedVisibility, zIndex 5, above panels, below preflight) |
+| **Failure Behavior** | Skip → launches directly. Unknown app → launches directly. Never blocks. |
+| **Roadmap** | **Implemented (TV-007)** |
+| **Dependencies** | Cluster 12 (Zen Shell ✓), Cluster 13 (Gesture Edge ✓), Cluster 14 (State Grammar ✓) |
+| **MVP-Cut** | enthalten |
 
-**Features:** App-Start mit Zielklärung, Impulsbremse, Doomscroll-Warnung, Moduswahl vor App, Share-Intent-Klärung, Bild-/Text-Intent-Klärung, Entscheidung merken, Absicht statt App.
+**Implemented:** `IntentSuggestion(label, subQuery?)`, `IntentClarifierEngine.suggest(packageName)` — rule-based table covering 25+ app categories (YouTube, Maps, Spotify, Instagram, Gmail, Slack, Discord, browsers, camera, Netflix, etc.); no external API, no regex — pure `String.contains()` matches on lowercase package name for zero latency. `IntentClarifierCard` composable: app icon + label, "What are you here for?" subtitle, `LazyRow` of `SuggestionChip`s, "Just open" TextButton always present. `TaviState.Capture` activated when clarifier shows; cleared to `Idle` on launch. `TaviViewModel.onNodeTap()` routes through clarifier when suggestions are non-empty; `onIntentSelected()` + `onIntentClarifierDismiss()` (both launch the app). `TaviUiState`: `pendingLaunchNode`, `intentSuggestions`, `showIntentClarifier`.
+
+**Noch nicht implementiert (Phase 2):** Intent recording (learn from choices), Park intent (add to Want Shelf), Redirect to search (YouTube "Search" opens PromptOrb pre-filled), AI-generated suggestions for unknown apps, Share-intent clarification, Doomscroll warning for known attention-trap apps.
 
 ---
 
