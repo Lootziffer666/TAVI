@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.tavi.ai.ModuleHealth
 import com.example.tavi.ai.ModuleStatus
+import com.example.tavi.notification.NotificationRule
+import com.example.tavi.subscription.SubscriptionInfo
 import com.example.tavi.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -21,6 +23,9 @@ fun WardenScreen(
     warden: TaviWarden,
     onClose: () -> Unit,
     moduleHealth: ModuleHealth = ModuleHealth(),
+    notificationRules: List<NotificationRule> = emptyList(),
+    onRuleToggle: (String) -> Unit = {},
+    detectedSubscriptions: List<SubscriptionInfo> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val isShizukuEnabled by warden.isShizukuEnabled.collectAsStateWithLifecycle(false)
@@ -126,6 +131,62 @@ fun WardenScreen(
             },
             accentColor = BreathBlue
         )
+
+        // Notification windows — always shown so users can discover and configure rules
+        HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 8.dp))
+        Text(
+            "Notification windows",
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.Gray,
+            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+        )
+        Text(
+            "Time windows where incoming notifications are held.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.DarkGray,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        notificationRules.forEach { rule ->
+            WardenToggleRow(
+                title = rule.name,
+                subtitle = rule.timeWindow + if (rule.allowedApps.isNotEmpty())
+                    " · allows: ${rule.allowedApps.joinToString()}" else "",
+                checked = rule.isActive,
+                onCheckedChange = { onRuleToggle(rule.id) },
+                accentColor = BreathBlue
+            )
+        }
+
+        // Installed subscriptions — only shown when at least one is detected
+        if (detectedSubscriptions.isNotEmpty()) {
+            HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 8.dp))
+            Text(
+                "Installed subscriptions",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.Gray,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
+            Text(
+                "Apps on this device known to use recurring billing.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.DarkGray,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            detectedSubscriptions.forEach { sub ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(sub.label, style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                        Text(sub.cycle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                    Text(sub.estimatedCost, style = MaterialTheme.typography.bodyMedium, color = GlowAmber)
+                }
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
 

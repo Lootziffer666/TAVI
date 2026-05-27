@@ -27,6 +27,7 @@ class TaviPreferences(private val context: Context) {
         val CLIP_HISTORY_JSON = stringPreferencesKey("clipHistory")
         val SNIPPETS_JSON = stringPreferencesKey("snippets")
         val CAPSULES_JSON = stringPreferencesKey("capsules")
+        val NOTIFICATION_RULES_JSON = stringPreferencesKey("notificationRules")
     }
 
     val maxFocusItems: Flow<Int> = context.dataStore.data.map { it[MAX_FOCUS_ITEMS] ?: 5 }
@@ -43,6 +44,7 @@ class TaviPreferences(private val context: Context) {
     val clipHistoryJson: Flow<String?> = context.dataStore.data.map { it[CLIP_HISTORY_JSON] }
     val snippetsJson: Flow<String?> = context.dataStore.data.map { it[SNIPPETS_JSON] }
     val capsulesJson: Flow<String?> = context.dataStore.data.map { it[CAPSULES_JSON] }
+    val notificationRulesJson: Flow<String?> = context.dataStore.data.map { it[NOTIFICATION_RULES_JSON] }
     val recentScopes: Flow<List<String>> = context.dataStore.data.map { prefs ->
         val json = prefs[RECENT_SCOPES_JSON] ?: return@map emptyList()
         runCatching {
@@ -143,6 +145,37 @@ class TaviPreferences(private val context: Context) {
     }
 
     suspend fun clearCapsules() = context.dataStore.edit { it.remove(CAPSULES_JSON) }
+
+    suspend fun toggleNotificationRule(id: String) = context.dataStore.edit { prefs ->
+        val existing = runCatching { JSONArray(prefs[NOTIFICATION_RULES_JSON] ?: "[]") }.getOrDefault(JSONArray())
+        val updated = JSONArray()
+        var found = false
+        for (i in 0 until existing.length()) {
+            val obj = existing.getJSONObject(i)
+            if (obj.optString("id") == id) {
+                obj.put("active", !obj.optBoolean("active", false))
+                found = true
+            }
+            updated.put(obj)
+        }
+        // If id not found (e.g. first run with defaults), write defaults then toggle
+        if (!found) {
+            val defaults = com.example.tavi.notification.NotificationRuleRepository.defaultRules()
+            val defaultsArr = JSONArray()
+            defaults.forEach { rule ->
+                defaultsArr.put(org.json.JSONObject().apply {
+                    put("id", rule.id)
+                    put("name", rule.name)
+                    put("window", rule.timeWindow)
+                    put("active", if (rule.id == id) !rule.isActive else rule.isActive)
+                    put("apps", JSONArray(rule.allowedApps))
+                })
+            }
+            prefs[NOTIFICATION_RULES_JSON] = defaultsArr.toString()
+        } else {
+            prefs[NOTIFICATION_RULES_JSON] = updated.toString()
+        }
+    }
 
     suspend fun addRecentScope(scope: String) = context.dataStore.edit { prefs ->
         val current = runCatching {
