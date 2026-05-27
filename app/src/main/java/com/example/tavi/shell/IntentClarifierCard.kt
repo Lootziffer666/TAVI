@@ -25,6 +25,7 @@ import com.example.tavi.manipulation.ManipulationPattern
 import com.example.tavi.ui.theme.BreathBlue
 import com.example.tavi.ui.theme.DepthMid
 import com.example.tavi.ui.theme.FallbackGrey
+import com.example.tavi.ui.theme.GlowAmber
 import com.example.tavi.ui.theme.RiskRed
 import com.example.tavi.ui.theme.TaviAccent
 
@@ -38,6 +39,9 @@ fun IntentClarifierCard(
     visible: Boolean,
     onSuggestionSelected: (IntentSuggestion) -> Unit,
     onSkip: () -> Unit,
+    showWatchToggle: Boolean = false,
+    watchGameEnabled: Boolean = false,
+    onWatchToggle: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -130,6 +134,31 @@ fun IntentClarifierCard(
                                 )
                             }
                         }
+                    }
+                }
+
+                // Watch toggle — only shown when patterns detected + Cloud AI available
+                if (showWatchToggle) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Watch during play", color = Color.White, fontSize = 13.sp)
+                            Text(
+                                "Real-time screen analysis via Gemini",
+                                color = FallbackGrey,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = watchGameEnabled,
+                            onCheckedChange = { onWatchToggle() },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = GlowAmber,
+                                checkedTrackColor = GlowAmber.copy(alpha = 0.3f)
+                            )
+                        )
                     }
                 }
 

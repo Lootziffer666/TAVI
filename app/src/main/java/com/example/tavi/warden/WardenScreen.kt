@@ -26,6 +26,8 @@ fun WardenScreen(
     notificationRules: List<NotificationRule> = emptyList(),
     onRuleToggle: (String) -> Unit = {},
     detectedSubscriptions: List<SubscriptionInfo> = emptyList(),
+    gameWatchInterval: Int = 60,
+    onGameWatchIntervalChanged: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isShizukuEnabled by warden.isShizukuEnabled.collectAsStateWithLifecycle(false)
@@ -131,6 +133,34 @@ fun WardenScreen(
             },
             accentColor = BreathBlue
         )
+
+        // Game watch interval selector
+        HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 8.dp))
+        Text(
+            "Game watch interval",
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.Gray,
+            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+        )
+        Text(
+            "How often to capture a frame for pattern analysis during play.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.DarkGray,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(30 to "30 s", 60 to "1 min", 120 to "2 min").forEach { (secs, label) ->
+                FilterChip(
+                    selected = gameWatchInterval == secs,
+                    onClick = { onGameWatchIntervalChanged(secs) },
+                    label = { Text(label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = GlowAmber.copy(alpha = 0.2f),
+                        selectedLabelColor = GlowAmber
+                    )
+                )
+            }
+        }
 
         // Notification windows — always shown so users can discover and configure rules
         HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 8.dp))

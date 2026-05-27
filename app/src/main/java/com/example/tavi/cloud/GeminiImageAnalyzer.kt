@@ -19,36 +19,43 @@ class GeminiImageAnalyzer(
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: error("Cannot open image")
             val bitmap = BitmapFactory.decodeStream(inputStream).also { inputStream.close() }
+            analyzeInternal(bitmap, prompt)
+        }
+    }
 
-            val maxDim = 1024
-            val scale = minOf(1f, maxDim.toFloat() / maxOf(bitmap.width, bitmap.height))
-            val scaled = if (scale < 1f) {
-                Bitmap.createScaledBitmap(
-                    bitmap,
-                    (bitmap.width * scale).toInt(),
-                    (bitmap.height * scale).toInt(),
-                    true
-                )
-            } else bitmap
+    suspend fun analyze(bitmap: Bitmap, prompt: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching { analyzeInternal(bitmap, prompt) }
+    }
 
-            val out = ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, 80, out)
-            val base64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    private suspend fun analyzeInternal(bitmap: Bitmap, prompt: String): String {
+        val maxDim = 1024
+        val scale = minOf(1f, maxDim.toFloat() / maxOf(bitmap.width, bitmap.height))
+        val scaled = if (scale < 1f)
+            Bitmap.createScaledBitmap(
+                bitmap,
+                (bitmap.width * scale).toInt(),
+                (bitmap.height * scale).toInt(),
+                true
+            )
+        else bitmap
 
-            val response = service.generateContent(
-                apiKey, GeminiRequest(
-                    contents = listOf(
-                        GeminiContent(
-                            parts = listOf(
-                                GeminiPart(text = prompt),
-                                GeminiPart(inlineData = GeminiInlineData("image/jpeg", base64))
-                            )
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 80, out)
+        val base64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+
+        val response = service.generateContent(
+            apiKey, GeminiRequest(
+                contents = listOf(
+                    GeminiContent(
+                        parts = listOf(
+                            GeminiPart(text = prompt),
+                            GeminiPart(inlineData = GeminiInlineData("image/jpeg", base64))
                         )
                     )
                 )
             )
-            response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                ?: error("No analysis result")
-        }
+        )
+        return response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
+            ?: error("No analysis result")
     }
 }

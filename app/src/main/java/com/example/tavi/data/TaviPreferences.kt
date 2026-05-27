@@ -28,6 +28,7 @@ class TaviPreferences(private val context: Context) {
         val SNIPPETS_JSON = stringPreferencesKey("snippets")
         val CAPSULES_JSON = stringPreferencesKey("capsules")
         val NOTIFICATION_RULES_JSON = stringPreferencesKey("notificationRules")
+        val GAME_WATCH_INTERVAL = intPreferencesKey("gameWatchInterval")
     }
 
     val maxFocusItems: Flow<Int> = context.dataStore.data.map { it[MAX_FOCUS_ITEMS] ?: 5 }
@@ -45,6 +46,7 @@ class TaviPreferences(private val context: Context) {
     val snippetsJson: Flow<String?> = context.dataStore.data.map { it[SNIPPETS_JSON] }
     val capsulesJson: Flow<String?> = context.dataStore.data.map { it[CAPSULES_JSON] }
     val notificationRulesJson: Flow<String?> = context.dataStore.data.map { it[NOTIFICATION_RULES_JSON] }
+    val gameWatchInterval: Flow<Int> = context.dataStore.data.map { it[GAME_WATCH_INTERVAL] ?: 60 }
     val recentScopes: Flow<List<String>> = context.dataStore.data.map { prefs ->
         val json = prefs[RECENT_SCOPES_JSON] ?: return@map emptyList()
         runCatching {
@@ -176,6 +178,8 @@ class TaviPreferences(private val context: Context) {
             prefs[NOTIFICATION_RULES_JSON] = updated.toString()
         }
     }
+
+    suspend fun setGameWatchInterval(seconds: Int) = context.dataStore.edit { it[GAME_WATCH_INTERVAL] = seconds }
 
     suspend fun addRecentScope(scope: String) = context.dataStore.edit { prefs ->
         val current = runCatching {

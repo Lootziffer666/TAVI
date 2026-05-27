@@ -1,6 +1,8 @@
 package com.example.tavi.shell
 
+import android.app.Activity
 import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,6 +46,25 @@ fun TaviShellScreen(
         if (uiState.captureImageRequested) {
             imagePickerLauncher.launch("image/*")
             viewModel.clearCaptureImageRequest()
+        }
+    }
+
+    val mediaProjectionManager = remember {
+        context.getSystemService(MediaProjectionManager::class.java)
+    }
+    val projectionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            viewModel.onProjectionGranted(result.resultCode, result.data!!)
+        } else {
+            viewModel.onProjectionDenied()
+        }
+    }
+    LaunchedEffect(uiState.projectionConsentRequested) {
+        if (uiState.projectionConsentRequested) {
+            projectionLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
+            viewModel.clearProjectionConsentRequest()
         }
     }
 
@@ -163,7 +184,10 @@ fun TaviShellScreen(
                     manipulationPatterns = uiState.manipulationPatterns,
                     showIntentClarifier = uiState.showIntentClarifier,
                     onIntentSelected = viewModel::onIntentSelected,
-                    onIntentClarifierDismiss = viewModel::onIntentClarifierDismiss
+                    onIntentClarifierDismiss = viewModel::onIntentClarifierDismiss,
+                    showWatchToggle = uiState.showWatchToggle,
+                    watchGameEnabled = uiState.watchGameEnabled,
+                    onWatchToggle = viewModel::onWatchGameToggled
                 )
                 else -> BotWorkspaceScreen(bot = uiState.bots[page - 2])
             }
@@ -178,6 +202,8 @@ fun TaviShellScreen(
                 notificationRules = uiState.notificationRules,
                 onRuleToggle = viewModel::onNotificationRuleToggle,
                 detectedSubscriptions = uiState.detectedSubscriptions,
+                gameWatchInterval = uiState.gameWatchInterval,
+                onGameWatchIntervalChanged = viewModel::onGameWatchIntervalChanged,
                 modifier = Modifier.fillMaxSize()
             )
         }

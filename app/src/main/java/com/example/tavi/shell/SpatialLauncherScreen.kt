@@ -80,6 +80,9 @@ fun SpatialLauncherScreen(
     showIntentClarifier: Boolean = false,
     onIntentSelected: (IntentSuggestion) -> Unit = {},
     onIntentClarifierDismiss: () -> Unit = {},
+    showWatchToggle: Boolean = false,
+    watchGameEnabled: Boolean = false,
+    onWatchToggle: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -197,6 +200,9 @@ fun SpatialLauncherScreen(
                 visible = showIntentClarifier,
                 onSuggestionSelected = onIntentSelected,
                 onSkip = onIntentClarifierDismiss,
+                showWatchToggle = showWatchToggle,
+                watchGameEnabled = watchGameEnabled,
+                onWatchToggle = onWatchToggle,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .zIndex(5f)

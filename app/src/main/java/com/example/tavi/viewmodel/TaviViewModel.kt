@@ -31,8 +31,10 @@ import com.example.tavi.state.TaviState
 import com.example.tavi.state.TaviStateReducer
 import com.example.tavi.intent.IntentClarifierEngine
 import com.example.tavi.intent.IntentSuggestion
+import com.example.tavi.manipulation.GameSessionService
 import com.example.tavi.manipulation.ManipulationEngine
 import com.example.tavi.manipulation.ManipulationPattern
+import com.example.tavi.manipulation.SessionDebrief
 import com.example.tavi.quickaction.QuickActionSuggester
 import com.example.tavi.quickaction.QuickActionType
 import com.example.tavi.snippet.SnippetEntry
@@ -81,7 +83,13 @@ data class TaviUiState(
     val captureImageRequested: Boolean = false,
     val captureImagePrompt: String = "",
     val notificationRules: List<NotificationRule> = emptyList(),
-    val detectedSubscriptions: List<SubscriptionInfo> = emptyList()
+    val detectedSubscriptions: List<SubscriptionInfo> = emptyList(),
+    val watchGameEnabled: Boolean = false,
+    val showWatchToggle: Boolean = false,
+    val projectionConsentRequested: Boolean = false,
+    val pendingGameLaunchNode: GardenNode? = null,
+    val gameWatchInterval: Int = 60,
+    val cloudAiEnabled: Boolean = false
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -151,6 +159,8 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectSnippets()
         collectCapsules()
         collectNotificationRules()
+        collectGameWatchInterval()
+        observeGameSession()
         initAIEngine()
     }
 
@@ -237,6 +247,11 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(recentScopes = scopes) }
             }
         }
+        launch {
+            warden.isCloudAiEnabled.collect { enabled ->
+                _state.update { it.copy(cloudAiEnabled = enabled) }
+            }
+        }
     }
 
     private fun collectBots() = viewModelScope.launch {
@@ -285,6 +300,41 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private fun collectNotificationRules() = viewModelScope.launch {
         notificationRuleRepo.rules.collect { rules ->
             _state.update { it.copy(notificationRules = rules) }
+        }
+    }
+
+    private fun collectGameWatchInterval() = viewModelScope.launch {
+        prefs.gameWatchInterval.collect { interval ->
+            _state.update { it.copy(gameWatchInterval = interval) }
+        }
+    }
+
+    private fun observeGameSession() {
+        // Live pattern updates — show in aiMessage as soon as something is detected
+        viewModelScope.launch {
+            GameSessionService.livePatterns.collect { patterns ->
+                if (patterns.isNotEmpty()) {
+                    val label = GameSessionService.sessionDebrief.value?.appLabel
+                        ?: _state.value.pendingGameLaunchNode?.label ?: "game"
+                    _state.update {
+                        it.copy(aiMessage = "Live — $label:\n" + patterns.joinToString("\n") { p -> "• $p" })
+                    }
+                }
+            }
+        }
+        // Session debrief — full summary when the service stops
+        viewModelScope.launch {
+            GameSessionService.sessionDebrief.filterNotNull().collect { debrief ->
+                val msg = if (debrief.detectedPatterns.isEmpty()) {
+                    "No manipulation patterns detected in ${debrief.appLabel} (${debrief.durationMinutes} min)."
+                } else {
+                    "Session debrief — ${debrief.appLabel} (${debrief.durationMinutes} min):\n" +
+                    debrief.detectedPatterns.joinToString("\n") { "• $it" }
+                }
+                _state.update { it.copy(aiMessage = msg) }
+                emitEvent(TaviEvent.AIResponseReceived)
+                GameSessionService.sessionDebrief.value = null
+            }
         }
     }
 
@@ -546,17 +596,22 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         if (suggestions.isEmpty() && patterns.isEmpty()) {
             launchNode(node)
         } else {
+            val showWatch = patterns.isNotEmpty() && geminiApiKey.isNotBlank() && _state.value.cloudAiEnabled
             _state.update {
                 it.copy(
                     pendingLaunchNode = node,
                     intentSuggestions = suggestions,
                     manipulationPatterns = patterns,
-                    showIntentClarifier = true
+                    showIntentClarifier = true,
+                    showWatchToggle = showWatch,
+                    watchGameEnabled = false
                 )
             }
             emitEvent(TaviEvent.IntentClarifierOpen)
         }
     }
+
+    fun onWatchGameToggled() = _state.update { it.copy(watchGameEnabled = !it.watchGameEnabled) }
 
     fun onFossilKeep(node: GardenNode) = viewModelScope.launch {
         gardenEngine.recordLaunch(node.packageName)
@@ -564,31 +619,43 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onIntentSelected(suggestion: IntentSuggestion) = viewModelScope.launch {
         val node = _state.value.pendingLaunchNode ?: return@launch
+        val watchEnabled = _state.value.watchGameEnabled
         _state.update {
             it.copy(
                 showIntentClarifier = false,
                 pendingLaunchNode = null,
                 intentSuggestions = emptyList(),
-                manipulationPatterns = emptyList()
+                manipulationPatterns = emptyList(),
+                showWatchToggle = false
             )
         }
         // suggestion.subQuery intentionally unused in MVP — Phase 2 will route it as a
         // pre-filled scope/context signal to the AI engine after launch
-        launchNode(node)
+        if (watchEnabled) {
+            _state.update { it.copy(pendingGameLaunchNode = node, projectionConsentRequested = true) }
+        } else {
+            launchNode(node)
+        }
     }
 
     fun onIntentClarifierDismiss() = viewModelScope.launch {
         val node = _state.value.pendingLaunchNode ?: return@launch
+        val watchEnabled = _state.value.watchGameEnabled
         _state.update {
             it.copy(
                 showIntentClarifier = false,
                 pendingLaunchNode = null,
                 intentSuggestions = emptyList(),
-                manipulationPatterns = emptyList()
+                manipulationPatterns = emptyList(),
+                showWatchToggle = false
             )
         }
         // Failure behavior: in doubt, launch directly — never block the user
-        launchNode(node)
+        if (watchEnabled) {
+            _state.update { it.copy(pendingGameLaunchNode = node, projectionConsentRequested = true) }
+        } else {
+            launchNode(node)
+        }
     }
 
     private suspend fun launchNode(node: GardenNode) {
@@ -798,6 +865,37 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(detectedSubscriptions = subs) }
             }
         }
+    }
+
+    fun clearProjectionConsentRequest() = _state.update { it.copy(projectionConsentRequested = false) }
+
+    fun onProjectionGranted(resultCode: Int, data: android.content.Intent) = viewModelScope.launch {
+        val node = _state.value.pendingGameLaunchNode ?: return@launch
+        val interval = _state.value.gameWatchInterval
+        val pm = getApplication<Application>().packageManager
+        val appLabel = runCatching {
+            pm.getApplicationLabel(pm.getApplicationInfo(node.packageName, 0)).toString()
+        }.getOrDefault(node.label)
+        val serviceIntent = android.content.Intent(getApplication(), GameSessionService::class.java).apply {
+            putExtra(GameSessionService.EXTRA_RESULT_CODE, resultCode)
+            putExtra(GameSessionService.EXTRA_RESULT_DATA, data)
+            putExtra(GameSessionService.EXTRA_PACKAGE_NAME, node.packageName)
+            putExtra(GameSessionService.EXTRA_APP_LABEL, appLabel)
+            putExtra(GameSessionService.EXTRA_INTERVAL_SECONDS, interval)
+        }
+        getApplication<Application>().startForegroundService(serviceIntent)
+        _state.update { it.copy(pendingGameLaunchNode = null, watchGameEnabled = false) }
+        launchNode(node)
+    }
+
+    fun onProjectionDenied() = viewModelScope.launch {
+        val node = _state.value.pendingGameLaunchNode ?: return@launch
+        _state.update { it.copy(pendingGameLaunchNode = null, watchGameEnabled = false) }
+        launchNode(node)
+    }
+
+    fun onGameWatchIntervalChanged(seconds: Int) = viewModelScope.launch {
+        prefs.setGameWatchInterval(seconds)
     }
 
     fun onSelfHealRequested() {
