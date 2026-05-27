@@ -1,7 +1,7 @@
 # TAVI Cluster Map — 19 Cluster mit Slot Contracts
 
-**Stand:** 2026-05-27 (aktualisiert nach TV-009 Delivery)
-**Status:** Cluster 1, 2, 3, 5, 6, 9, 11, 12, 13, 14, 15, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
+**Stand:** 2026-05-27 (aktualisiert nach TV-011 Delivery)
+**Status:** Cluster 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
 **Schema:** Jeder Cluster folgt dem Slot Contract aus `CONCEPT_CONTRACT.md` (Name, Purpose, User State, Input, Output, Visible Surface, Failure Behavior) plus Roadmap-Status, Dependencies und MVP-Cut-Empfehlung.
 
 ---
@@ -24,7 +24,10 @@
 | 18 | Work Capsule | **Implemented** — WorkCapsule + CapsuleRepository + CapsulePanel + AIResponseBanner save button |
 | 19 | Privacy / Control / Warden | **Implemented** — TaviWarden + WardenScreen |
 | 9 | Psychotricks / Manipulation Pattern Lexicon | **Implemented** — ManipulationEngine (15 patterns, 25+ apps) + IntentClarifierCard pattern row |
-| 4, 7, 8, 10, 16 | Weitere Cluster | Roadmap |
+| 4 | Image-as-Intent | **Implemented** — GeminiImageAnalyzer + img: prefix + image picker + AIResponseBanner output |
+| 7 | Notification Sifter | **Implemented** — NotificationRule + NotificationRuleRepository + WardenScreen toggle rows |
+| 8 | Subscription Trap | **Implemented** — SubscriptionScanner (25 known apps) + WardenScreen subscription section |
+| 10, 16 | Weitere Cluster | Roadmap |
 
 ---
 
@@ -38,6 +41,8 @@
 **Implementiert (TV-007):** Cluster 6 — Intent Controller (MVP: rule-based clarifier, skip-to-launch)
 **Implementiert (TV-008):** Audit fixes — 10 findings from code-review resolved
 **Implementiert (TV-009):** Cluster 9 MVP — Manipulation Pattern Lexicon (ManipulationEngine + IntentClarifierCard extension)
+**Implementiert (TV-010):** Cluster 4 MVP — Image-as-Intent (GeminiImageAnalyzer + img: prefix + image picker)
+**Implementiert (TV-011):** Cluster 7 MVP — Notification Sifter (NotificationRule + NotificationRuleRepository + WardenScreen rules); Cluster 8 MVP — Subscription Trap (SubscriptionScanner 25 apps + WardenScreen subscription section)
 
 **Empfohlener MVP-Schnitt (5 Cluster):** 1 Clipboard, 2 Snippets, 5 Handoffs, 14 State Grammar, 19 Privacy/Warden. Alles andere ist Phase 2+.
 
