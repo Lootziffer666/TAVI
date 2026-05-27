@@ -22,6 +22,7 @@ import com.example.tavi.garden.GardenNode
 import com.example.tavi.intent.IntentSuggestion
 import com.example.tavi.manipulation.ManipulationPattern
 import com.example.tavi.quickaction.QuickActionSuggester
+import com.example.tavi.desire.WantPanel
 import com.example.tavi.quickaction.QuickActionType
 import com.example.tavi.snippet.SnippetEntry
 import com.example.tavi.snippet.SnippetPanel
@@ -74,6 +75,11 @@ fun SpatialLauncherScreen(
     onCapsuleCopy: (WorkCapsule) -> Unit = {},
     onCapsuleDelete: (WorkCapsule) -> Unit = {},
     onSaveAiAsCapsule: () -> Unit = {},
+    wantItems: List<com.example.tavi.desire.WantItem> = emptyList(),
+    showWantPanel: Boolean = false,
+    onWantDismiss: () -> Unit = {},
+    onWantItemDo: (com.example.tavi.desire.WantItem) -> Unit = {},
+    onWantItemDelete: (com.example.tavi.desire.WantItem) -> Unit = {},
     pendingLaunchNode: GardenNode? = null,
     intentSuggestions: List<IntentSuggestion> = emptyList(),
     manipulationPatterns: List<ManipulationPattern> = emptyList(),
@@ -162,6 +168,19 @@ fun SpatialLauncherScreen(
             visible = showCapsulePanel,
             onCapsuleCopy = onCapsuleCopy,
             onCapsuleDelete = onCapsuleDelete,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(4f)
+                .padding(bottom = 88.dp)
+        )
+
+        // Layer 4e: Want shelf panel
+        WantPanel(
+            items = wantItems,
+            visible = showWantPanel,
+            onDo = onWantItemDo,
+            onDelete = onWantItemDelete,
+            onDismiss = onWantDismiss,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .zIndex(4f)

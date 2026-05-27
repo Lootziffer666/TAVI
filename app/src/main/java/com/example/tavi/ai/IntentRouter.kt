@@ -14,6 +14,8 @@ sealed class IntentRouterResult {
     data class SaveCapsule(val title: String) : IntentRouterResult()
     object OpenSettings : IntentRouterResult()
     data class CaptureImage(val prompt: String) : IntentRouterResult()
+    object ShowWantShelf : IntentRouterResult()
+    data class SaveWantItem(val title: String) : IntentRouterResult()
 }
 
 class IntentRouter(private val knownBotNames: Set<String>) {
@@ -54,6 +56,11 @@ class IntentRouter(private val knownBotNames: Set<String>) {
                     rest.trim().lowercase() to ""
                 }
                 IntentRouterResult.HandoffToBot(botId, content)
+            }
+            trimmed.equals("want:", ignoreCase = true) || trimmed.startsWith("want:") -> {
+                val rest = trimmed.removePrefix("want:").trim()
+                if (rest.startsWith("save ")) IntentRouterResult.SaveWantItem(rest.removePrefix("save ").trim())
+                else IntentRouterResult.ShowWantShelf
             }
             trimmed.equals("img:", ignoreCase = true) || trimmed.startsWith("img: ") ||
             (trimmed.startsWith("img:") && trimmed.length > 4) -> {

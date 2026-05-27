@@ -37,6 +37,8 @@ import com.example.tavi.manipulation.ManipulationPattern
 import com.example.tavi.manipulation.SessionDebrief
 import com.example.tavi.quickaction.QuickActionSuggester
 import com.example.tavi.quickaction.QuickActionType
+import com.example.tavi.desire.WantItem
+import com.example.tavi.desire.WantShelfRepository
 import com.example.tavi.snippet.SnippetEntry
 import com.example.tavi.snippet.SnippetRepository
 import com.example.tavi.warden.TaviWarden
@@ -89,7 +91,9 @@ data class TaviUiState(
     val projectionConsentRequested: Boolean = false,
     val pendingGameLaunchNode: GardenNode? = null,
     val gameWatchInterval: Int = 60,
-    val cloudAiEnabled: Boolean = false
+    val cloudAiEnabled: Boolean = false,
+    val wantItems: List<WantItem> = emptyList(),
+    val showWantPanel: Boolean = false
 )
 
 class TaviViewModel(app: Application) : AndroidViewModel(app) {
@@ -111,6 +115,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
     private val clipboardRepo = ClipboardRepository(app, prefs)
     private val snippetRepo = SnippetRepository(prefs)
     private val capsuleRepo = CapsuleRepository(prefs)
+    private val wantShelfRepo = WantShelfRepository(prefs)
 
     private val geminiApiKey = BuildConfig.GEMINI_API_KEY
         .takeIf { it.isNotBlank() && it != "placeholder" } ?: ""
@@ -158,6 +163,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         collectClipHistory()
         collectSnippets()
         collectCapsules()
+        collectWantShelf()
         collectNotificationRules()
         collectGameWatchInterval()
         observeGameSession()
@@ -297,6 +303,12 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun collectWantShelf() = viewModelScope.launch {
+        wantShelfRepo.items.collect { items ->
+            _state.update { it.copy(wantItems = items) }
+        }
+    }
+
     private fun collectNotificationRules() = viewModelScope.launch {
         notificationRuleRepo.rules.collect { rules ->
             _state.update { it.copy(notificationRules = rules) }
@@ -428,6 +440,11 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                         )
                     }
                 }
+                IntentRouterResult.ShowWantShelf -> {
+                    _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "",
+                        showWantPanel = true, showClipPanel = false, showSnippetPanel = false, showCapsulePanel = false) }
+                }
+                is IntentRouterResult.SaveWantItem -> handleSaveWantItem(result.title)
             }
         }
     }
@@ -808,7 +825,54 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(showClipPanel = false, aiMessage = "Saved as capsule.") }
                 emitEvent(TaviEvent.AIActionReceived("save_capsule"))
             }
+            QuickActionType.PARK -> onParkClip(entry)
         }
+    }
+
+    fun onWantDismiss() = _state.update { it.copy(showWantPanel = false) }
+
+    fun onWantItemDelete(item: WantItem) = viewModelScope.launch { wantShelfRepo.delete(item.id) }
+
+    fun onWantItemDo(item: WantItem) = viewModelScope.launch {
+        val cm = getApplication<Application>()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("tavi-want", item.content))
+        if (item.content.startsWith("http://") || item.content.startsWith("https://")) {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse(item.content)).apply { flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK }
+            runCatching { getApplication<Application>().startActivity(intent) }
+        }
+        wantShelfRepo.delete(item.id)
+        _state.update { it.copy(showWantPanel = false) }
+    }
+
+    fun onParkClip(entry: ClipEntry) = viewModelScope.launch {
+        val hints = com.example.tavi.manipulation.ManipulationEngine
+            .detect(entry.content.substringAfterLast("/").substringBefore("?"))
+            .map { it.name }
+        val subCost = com.example.tavi.subscription.SubscriptionScanner
+            .scan(listOf(entry.content.removePrefix("https://").removePrefix("http://")
+                .split("/").firstOrNull() ?: ""))
+            .firstOrNull()?.estimatedCost
+        val title = entry.content.take(40).replace('\n', ' ')
+        wantShelfRepo.add(WantItem(title = title, content = entry.content,
+            subscriptionCost = subCost, manipulationHints = hints))
+        _state.update { it.copy(showClipPanel = false, aiMessage = "Parked.") }
+        emitEvent(TaviEvent.AIActionReceived("park_clip"))
+    }
+
+    private suspend fun handleSaveWantItem(title: String) {
+        val content = _state.value.aiMessage?.takeIf { it.isNotBlank() }
+            ?: _state.value.clipHistory.firstOrNull()?.content ?: ""
+        if (content.isBlank()) {
+            emitEvent(TaviEvent.BlockedOccurred("Nothing to park"))
+            _state.update { it.copy(isThinking = false) }
+            return
+        }
+        wantShelfRepo.add(WantItem(title = title.ifBlank { content.take(30) }, content = content))
+        _state.update { it.copy(isThinking = false, isOrbExpanded = false, promptText = "",
+            aiMessage = "Parked \"${title.ifBlank { content.take(20) }}\".") }
+        emitEvent(TaviEvent.AIActionReceived("save_want"))
     }
 
     fun onClipHandoff(botId: String, content: String) = viewModelScope.launch {

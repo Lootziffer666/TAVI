@@ -29,6 +29,7 @@ class TaviPreferences(private val context: Context) {
         val CAPSULES_JSON = stringPreferencesKey("capsules")
         val NOTIFICATION_RULES_JSON = stringPreferencesKey("notificationRules")
         val GAME_WATCH_INTERVAL = intPreferencesKey("gameWatchInterval")
+        val WANT_SHELF_JSON = stringPreferencesKey("wantShelf")
     }
 
     val maxFocusItems: Flow<Int> = context.dataStore.data.map { it[MAX_FOCUS_ITEMS] ?: 5 }
@@ -47,6 +48,7 @@ class TaviPreferences(private val context: Context) {
     val capsulesJson: Flow<String?> = context.dataStore.data.map { it[CAPSULES_JSON] }
     val notificationRulesJson: Flow<String?> = context.dataStore.data.map { it[NOTIFICATION_RULES_JSON] }
     val gameWatchInterval: Flow<Int> = context.dataStore.data.map { it[GAME_WATCH_INTERVAL] ?: 60 }
+    val wantShelfJson: Flow<String?> = context.dataStore.data.map { it[WANT_SHELF_JSON] }
     val recentScopes: Flow<List<String>> = context.dataStore.data.map { prefs ->
         val json = prefs[RECENT_SCOPES_JSON] ?: return@map emptyList()
         runCatching {
@@ -180,6 +182,34 @@ class TaviPreferences(private val context: Context) {
     }
 
     suspend fun setGameWatchInterval(seconds: Int) = context.dataStore.edit { it[GAME_WATCH_INTERVAL] = seconds }
+
+    suspend fun addWantItem(item: com.example.tavi.desire.WantItem) = context.dataStore.edit { prefs ->
+        val existing = runCatching { org.json.JSONArray(prefs[WANT_SHELF_JSON] ?: "[]") }.getOrDefault(org.json.JSONArray())
+        val obj = org.json.JSONObject().apply {
+            put("id", item.id)
+            put("title", item.title)
+            put("content", item.content)
+            put("cost", item.subscriptionCost ?: "")
+            put("hints", org.json.JSONArray(item.manipulationHints))
+            put("ts", item.timestamp)
+        }
+        val updated = org.json.JSONArray()
+        updated.put(obj)
+        for (i in 0 until minOf(existing.length(), 29)) updated.put(existing.getJSONObject(i))
+        prefs[WANT_SHELF_JSON] = updated.toString()
+    }
+
+    suspend fun deleteWantItem(id: String) = context.dataStore.edit { prefs ->
+        val existing = runCatching { org.json.JSONArray(prefs[WANT_SHELF_JSON] ?: "[]") }.getOrDefault(org.json.JSONArray())
+        val updated = org.json.JSONArray()
+        for (i in 0 until existing.length()) {
+            val obj = existing.getJSONObject(i)
+            if (obj.optString("id") != id) updated.put(obj)
+        }
+        prefs[WANT_SHELF_JSON] = updated.toString()
+    }
+
+    suspend fun clearWantShelf() = context.dataStore.edit { it.remove(WANT_SHELF_JSON) }
 
     suspend fun addRecentScope(scope: String) = context.dataStore.edit { prefs ->
         val current = runCatching {
