@@ -9,6 +9,7 @@
   <img src="https://img.shields.io/badge/Platform-Android%2024%2B-green?style=flat-square" />
   <img src="https://img.shields.io/badge/Stack-Kotlin%20%2B%20Compose-blueviolet?style=flat-square" />
   <img src="https://img.shields.io/badge/Status-Implemented%20%E2%80%94%20branch%20wL7tV-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/Clusters-9%20of%2019-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/AI-Gemma%20%2B%20Gemini%20fallback-orange?style=flat-square" />
 </p>
 
@@ -62,13 +63,28 @@ app/src/main/java/com/example/tavi/
 │   ├── PromptOrb.kt             Pulsierender AI-Eingabe-Button; Placeholder: ? ask ! act /build >bot
 │   ├── AIResponseBanner.kt      Ephemeral Banner; tap-to-dismiss; scrollbar für Shell-Output
 │   ├── ActionPreflightCard.kt   Cluster 15 — Preflight-Card im RiskDetected-Zustand
-│   ├── SpatialLauncherScreen.kt Z-Stack: Canvas(0) + StateAnchor(3) + ClipPanel(4) + ScopeChips(4)
+│   ├── IntentClarifierCard.kt   Cluster 6 — "Was willst du hier?" Capture-Anker beim App-Start
+│   ├── SpatialLauncherScreen.kt Z-Stack: Canvas(0) + StateAnchor(3) + ClipPanel(4) + SnippetPanel(4)
+│   │                             + CapsulePanel(4) + ScopeChips(4) + IntentClarifier(5)
 │   │                             + PreflightCard(6) + PromptOrb(7)
 │   └── TaviShellScreen.kt       HorizontalPager + Gesture-Routing + Warden-Overlay
 ├── clipboard/                   Cluster 1 — Clipboard / Transfer Layer
 │   ├── ClipEntry.kt             data class + ClipType (TEXT/URL/PHONE/CODE/OTHER)
-│   ├── ClipboardRepository.kt   DataStore + session-memory; auto-detects type; max 10 Einträge
-│   └── ClipPanel.kt             AnimatedVisibility LazyRow; URL-Clips mit Bot-Send-Icons
+│   ├── ClipboardRepository.kt   DataStore + session-memory; per-item parse; max 10 Einträge
+│   └── ClipPanel.kt             AnimatedVisibility LazyRow; URL-Clips mit Bot-Send-Icons + QuickActions
+├── snippet/                     Cluster 2 — Snippet Library
+│   ├── SnippetEntry.kt          data class (id, title, content, tags, isFavorite, timestamp)
+│   ├── SnippetRepository.kt     DataStore Flow; per-item parse; favorites + timestamp sort
+│   └── SnippetPanel.kt          AnimatedVisibility LazyColumn; Favoriten oben; Copy/Delete/Star
+├── capsule/                     Cluster 3 — Work Capsule Vault
+│   ├── WorkCapsule.kt           data class + CapsuleSource (CLIPBOARD / AI_RESPONSE / MANUAL)
+│   ├── CapsuleRepository.kt     DataStore Flow; per-item parse; max 50 Einträge
+│   └── CapsulePanel.kt          AnimatedVisibility LazyColumn; BreathBlue Design; Copy/Delete
+├── intent/                      Cluster 6 — Intent Controller
+│   ├── IntentSuggestion.kt      data class (label, subQuery)
+│   └── IntentClarifierEngine.kt 25+ app-category rules (O(1)); returns [] = direct launch
+├── quickaction/                 Cluster 18 — Quick Action Suggester
+│   └── QuickActionSuggester.kt  Stateless; suggest(ClipEntry) → OPEN_URL / DIAL / SAVE_SNIPPET / SAVE_CAPSULE
 ├── gesture/                     Cluster 13 — ohne AccessibilityService
 │   ├── TaviGestureRouter.kt     Edge-Zonen (12% Ränder) → GestureIntent
 │   └── SwipeEngine.kt           Tinder-Karten-Physik (Animatable + detectDragGestures)
@@ -76,7 +92,7 @@ app/src/main/java/com/example/tavi/
 ├── ai/                          AI-Schicht
 │   ├── LocalAIEngine.kt         MediaPipe Gemma (primär, streaming via Proxy)
 │   ├── TaviAIEngine.kt          Orchestrator: Local → Cloud Fallback → Rule-Based
-│   ├── IntentRouter.kt          Prefix-Routing: ? / ! / /build / >bot / clip: / http / settings
+│   ├── IntentRouter.kt          Prefix-Routing: ? / ! / /build / >bot / clip: / snip: / cap: / http / settings
 │   └── MobileActionsRouter.kt   JSON → promote_app / demote_app / narrate (DEMOTE/PROMOTE → Preflight)
 ├── cloud/                       Gemini API (Retrofit + Moshi, cloud fallback)
 │   ├── GeminiShellExecutor.kt   NL → Shell-Kommando-Übersetzung (aktiv wenn API-Key vorhanden)
@@ -123,6 +139,8 @@ IntentRouter (Prefix-Routing)
     ├── /build     → handleAIQuery("Adjust the launcher layout: …") → TaviAIEngine
     ├── >bot: txt  → handleHandoff() → Clipboard + Bot-Navigation (Cluster 5)
     ├── clip:      → ClipPanel öffnen (Cluster 1)
+    ├── snip:      → SnippetPanel öffnen / snip: save <title> → SnippetRepository (Cluster 2)
+    ├── cap:       → CapsulePanel öffnen / cap: save <title> → CapsuleRepository (Cluster 3)
     ├── http…      → Intent.ACTION_VIEW
     └── settings   → Settings.ACTION_SETTINGS
 ```
@@ -168,15 +186,19 @@ Alle Implementierungen: `claude/intent-zen-integration-wL7tV`
 | # | Cluster | Status |
 |---|---|---|
 | 1 | Clipboard / Transfer Layer | Implemented — ClipboardRepository + ClipPanel + `clip:` routing |
+| 2 | Snippet Library | Implemented — SnippetEntry + SnippetRepository + SnippetPanel + `snip:` routing |
+| 3 | Work Capsule Vault | Implemented — WorkCapsule + CapsuleRepository + CapsulePanel + `cap:` routing; long-press AI banner saves to capsule |
 | 5 | Handoffs | Implemented — `>bot: content` IntentRouter + handleHandoff() + ClipPanel bot icons |
-| 11 | App Fossil Finder | Implemented — FossilDeckScreen + GardenEngine.markAsFossil() + AppCategorizer |
+| 6 | Intent Controller | Implemented — IntentClarifierEngine (25+ app rules) + IntentClarifierCard; Capture state; direct launch for unknown apps |
+| 11 | App Fossil Finder | Implemented — FossilDeckScreen + GardenEngine.markAsFossil() + AppCategorizer (cloud) |
 | 12 | Zen Shell / Launcher Rooms | Implemented — GardenCanvas + FocusZone + SpatialLauncherScreen |
 | 13 | Overlay / Handles / Gesture Edge | Implemented — TaviGestureRouter + SwipeEngine |
-| 14 | State Grammar / One Anchor | Implemented — TaviState + TaviStateReducer + StateAnchor |
-| 15 | Safe Action Buffer | Implemented — PendingAction + ActionPreflightCard; all risk actions through preflight |
+| 14 | State Grammar / One Anchor | Implemented — TaviState + TaviStateReducer (10 events) + StateAnchor |
+| 15 | Safe Action Buffer | Implemented — PendingAction + ActionPreflightCard; all risk actions (shell / demote / promote / scope) through preflight |
 | 17 | AI / Tool Handoff | Implemented — LocalAIEngine + TaviAIEngine + IntentRouter + GeminiShellExecutor wired |
-| 19 | Privacy / Control / Warden | Implemented — TaviWarden + WardenScreen |
-| 2–4, 6–10, 16, 18 | Weitere Cluster | Roadmap |
+| 18 | Quick Action Suggester | Implemented — QuickActionSuggester wired into ClipPanel; URL/PHONE/snippet/capsule actions |
+| 19 | Privacy / Control / Warden | Implemented — TaviWarden + WardenScreen; emergency off clears clip history + pending actions |
+| 4, 7–10, 16 | Weitere Cluster | Roadmap |
 
 ---
 
