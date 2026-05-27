@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Platform-Android%2024%2B-green?style=flat-square" />
   <img src="https://img.shields.io/badge/Stack-Kotlin%20%2B%20Compose-blueviolet?style=flat-square" />
   <img src="https://img.shields.io/badge/Status-Implemented%20%E2%80%94%20branch%20wL7tV-brightgreen?style=flat-square" />
-  <img src="https://img.shields.io/badge/Clusters-13%20of%2019-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Clusters-17%20of%2019-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/AI-Gemma%20%2B%20Gemini%20fallback-orange?style=flat-square" />
 </p>
 
@@ -198,22 +198,23 @@ Alle Implementierungen: `claude/intent-zen-integration-wL7tV`
 |---|---|---|
 | 1 | Clipboard / Transfer Layer | Implemented — ClipboardRepository + ClipPanel + `clip:` routing |
 | 2 | Snippet Library | Implemented — SnippetEntry + SnippetRepository + SnippetPanel + `snip:` routing |
-| 3 | Work Capsule Vault | Implemented — WorkCapsule + CapsuleRepository + CapsulePanel + `cap:` routing; long-press AI banner saves to capsule |
-| 5 | Handoffs | Implemented — `>bot: content` IntentRouter + handleHandoff() + ClipPanel bot icons |
-| 6 | Intent Controller | Implemented — IntentClarifierEngine (25+ app rules) + IntentClarifierCard; Capture state; direct launch for unknown apps |
+| 3 | QuickActions / Kontextaktionen | Implemented — QuickActionSuggester (URL/PHONE/PARK/snippet/capsule); PARK wired to Want Shelf |
 | 4 | Image-as-Intent | Implemented — GeminiImageAnalyzer + `img:` prefix → system image picker → Gemini Vision → AIResponseBanner |
+| 5 | Handoffs | Implemented — `>bot: content` IntentRouter + handleHandoff() + ClipPanel bot icons |
+| 6 | Intent Controller | Implemented — IntentClarifierEngine (30+ app rules) + IntentClarifierCard; Capture state; direct launch for unknown apps |
 | 7 | Notification Sifter | Implemented — NotificationRule + NotificationRuleRepository (DataStore) + WardenScreen toggle rows; no NotificationListenerService |
 | 8 | Subscription Trap | Implemented — SubscriptionScanner (25 known apps, static map) + WardenScreen section; scans on Warden open |
-| 9 | Psychotricks | Implemented — ManipulationEngine (15 patterns, 25+ app families) + IntentClarifierCard pattern row; RiskRed chips, never blocks |
+| 9 | Psychotricks / Game Watch | Implemented — ManipulationEngine (15 patterns, 25+ app families) + IntentClarifierCard pattern row + GameSessionService (MediaProjection real-time frame analysis, 30s/1min/2min intervals) |
 | 11 | App Fossil Finder | Implemented — FossilDeckScreen + GardenEngine.markAsFossil() + AppCategorizer (cloud) |
 | 12 | Zen Shell / Launcher Rooms | Implemented — GardenCanvas + FocusZone + SpatialLauncherScreen |
 | 13 | Overlay / Handles / Gesture Edge | Implemented — TaviGestureRouter + SwipeEngine |
 | 14 | State Grammar / One Anchor | Implemented — TaviState + TaviStateReducer (10 events) + StateAnchor |
 | 15 | Safe Action Buffer | Implemented — PendingAction + ActionPreflightCard; all risk actions (shell / demote / promote / scope) through preflight |
+| 16 | Desire Queue / Want Shelf | Implemented — WantItem + WantShelfRepository + WantPanel + `want:` prefix + PARK QuickAction; Cluster 8/9 enrichment |
 | 17 | AI / Tool Handoff | Implemented — LocalAIEngine + TaviAIEngine + IntentRouter + GeminiShellExecutor wired |
-| 18 | Quick Action Suggester | Implemented — QuickActionSuggester wired into ClipPanel; URL/PHONE/snippet/capsule actions |
+| 18 | Work Capsule Vault | Implemented — WorkCapsule + CapsuleRepository + CapsulePanel + `cap:` routing; long-press AI banner saves to capsule |
 | 19 | Privacy / Control / Warden | Implemented — TaviWarden + WardenScreen; emergency off clears clip history + pending actions |
-| 10, 16 | Weitere Cluster | Roadmap |
+| 10 | Supervised Game Drawer | Roadmap — potential separate sub-project (family/kids layer) |
 
 ---
 

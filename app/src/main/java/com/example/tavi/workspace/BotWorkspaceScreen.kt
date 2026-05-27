@@ -28,6 +28,9 @@ fun BotWorkspaceScreen(bot: BotInfo, modifier: Modifier = Modifier) {
                     loadUrl(bot.url)
                 }
             },
+            update = { webView ->
+                if (webView.url != bot.url) webView.loadUrl(bot.url)
+            },
             onRelease = { webView ->
                 webView.stopLoading()
                 webView.destroy()

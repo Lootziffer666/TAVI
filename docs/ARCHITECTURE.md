@@ -106,6 +106,10 @@ app/src/main/java/com/example/tavi/
 │                             /build  → BuildLayout (→ routed through handleAIQuery)
 │                             >bot: content → HandoffToBot(botId, content)
 │                             clip:   → ShowClipboard
+│                             snip:   → ShowSnippets / SaveSnippet(title)
+│                             cap:    → ShowCapsules / SaveCapsule(title)
+│                             img:    → CaptureImage(prompt)
+│                             want:   → ShowWantShelf / SaveWantItem(title)
 │                             http(s) → OpenUrl
 │                             settings→ OpenSettings
 │                             else    → QueryAI
@@ -134,14 +138,47 @@ app/src/main/java/com/example/tavi/
 │     WorkspaceRepository.kt — Moshi JSON ↔ DataStore. bots: Flow<List<BotInfo>>.
 │                               saveBots/addBot/removeBot/reset.
 │
+├── notification/                Cluster 7 — Notification Sifter
+│     NotificationRule.kt    — data class (id, name, timeWindow, isActive, allowedApps)
+│     NotificationRuleRepository.kt — DataStore-backed; 3 defaults (Morning/Evening/Night);
+│                                      toggleRule(id) + rules: Flow<List<NotificationRule>>.
+│
+├── subscription/                Cluster 8 — Subscription Trap Scanner
+│     SubscriptionInfo.kt    — data class (packageName, label, estimatedCost, cycle)
+│     SubscriptionScanner.kt — Static map 25 known subscription apps; scan(packages) → List.
+│                               Called on Warden open via onWardenToggle().
+│
+├── manipulation/                Cluster 9 — Psychotricks + Game Watch
+│     ManipulationPattern.kt — data class (id, name, PatternCategory)
+│                               PatternCategory enum: ENGAGEMENT/COMMERCE/URGENCY/ATTENTION/SOCIAL
+│     ManipulationEngine.kt  — 15 patterns, 25+ app families. detect(packageName) → [].
+│                               Triggered on onNodeTap(). Results shown in IntentClarifierCard.
+│     SessionDebrief.kt      — data class (packageName, appLabel, detectedPatterns, durationMinutes)
+│     GameSessionService.kt  — Foreground Service (mediaProjection type). VirtualDisplay + ImageReader.
+│                               Captures frame every intervalSec (30/60/120). GeminiImageAnalyzer.analyze(Bitmap).
+│                               Posts per-pattern notifications during session.
+│                               onDestroy(): sessionDebrief StateFlow → ViewModel debrief collector.
+│                               Companion: livePatterns + sessionDebrief (MutableStateFlow, process-lifetime).
+│
+├── desire/                      Cluster 16 — Desire Queue / Want Shelf
+│     WantItem.kt            — data class (id, title, content, subscriptionCost, manipulationHints, timestamp)
+│     WantShelfRepository.kt — DataStore via TaviPreferences; max 30 items; add/delete.
+│     WantPanel.kt           — AnimatedVisibility bottom sheet. LazyColumn. Age label (formatAge()),
+│                               GlowAmber subscription cost badge, RiskRed manipulation hint.
+│                               "Do it" → clipboard + open URL + delete. "Drop" → delete.
+│
 ├── warden/                  Cluster 19 — new for TAVI
 │     TaviWarden.kt        — DataStore-backed flows: isEmergencyOff, isPrivateMode,
 │                             isShizukuEnabled, isCloudAiEnabled, isBotWorkspacesEnabled,
 │                             isFullyOperational. enable/disable methods. triggerEmergencyOff().
-│     WardenScreen.kt      — Scrollable Column of SwitchListTile-style rows.
-│                             Rows: Private room / Shizuku / Cloud AI / Bot workspaces.
+│     WardenScreen.kt      — Scrollable Column of toggle rows + sections.
+│                             Toggles: Private room / Session-only / Shizuku / Cloud AI / Bot workspaces.
+│                             Game watch interval selector (30s/1min/2min FilterChips).
+│                             Notification windows section (per-rule toggles).
+│                             Installed subscriptions section (only when non-empty).
+│                             Module health section (only when degraded/failed).
 │                             Emergency off button (RiskRed outlined).
-│                             Access: long-press on canvas background or StateAnchor chip.
+│                             Access: long-press canvas background or StateAnchor chip.
 │
 ├── shizuku/
 │     ShizukuManager.kt    — FROM INTENT. isReady(), checkPermission(),

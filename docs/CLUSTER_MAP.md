@@ -1,7 +1,7 @@
 # TAVI Cluster Map — 19 Cluster mit Slot Contracts
 
-**Stand:** 2026-05-27 (aktualisiert nach TV-011 Delivery)
-**Status:** Cluster 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`.
+**Stand:** 2026-05-27 (aktualisiert nach TV-014 Audit-Fix)
+**Status:** Cluster 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19 implementiert auf `claude/intent-zen-integration-wL7tV`. Nur Cluster 10 verbleibt als Roadmap.
 **Schema:** Jeder Cluster folgt dem Slot Contract aus `CONCEPT_CONTRACT.md` (Name, Purpose, User State, Input, Output, Visible Surface, Failure Behavior) plus Roadmap-Status, Dependencies und MVP-Cut-Empfehlung.
 
 ---
@@ -23,11 +23,12 @@
 | 17 | AI / Tool Handoff | **Implemented** — LocalAIEngine + TaviAIEngine + IntentRouter + GeminiShellExecutor |
 | 18 | Work Capsule | **Implemented** — WorkCapsule + CapsuleRepository + CapsulePanel + AIResponseBanner save button |
 | 19 | Privacy / Control / Warden | **Implemented** — TaviWarden + WardenScreen |
-| 9 | Psychotricks / Manipulation Pattern Lexicon | **Implemented** — ManipulationEngine (15 patterns, 25+ apps) + IntentClarifierCard pattern row |
+| 9 | Psychotricks / Manipulation Pattern Lexicon + Game Watch | **Implemented** — ManipulationEngine (15 patterns, 25+ apps) + IntentClarifierCard pattern row + GameSessionService (MediaProjection real-time) |
 | 4 | Image-as-Intent | **Implemented** — GeminiImageAnalyzer + img: prefix + image picker + AIResponseBanner output |
 | 7 | Notification Sifter | **Implemented** — NotificationRule + NotificationRuleRepository + WardenScreen toggle rows |
 | 8 | Subscription Trap | **Implemented** — SubscriptionScanner (25 known apps) + WardenScreen subscription section |
-| 10, 16 | Weitere Cluster | Roadmap |
+| 16 | Desire Queue / Want Shelf | **Implemented** — WantItem + WantShelfRepository + WantPanel + want: prefix + PARK QuickAction |
+| 10 | Supervised Game Drawer | Roadmap — eigenständiges Familien-Feature / potentielles Sub-Projekt |
 
 ---
 
@@ -43,6 +44,9 @@
 **Implementiert (TV-009):** Cluster 9 MVP — Manipulation Pattern Lexicon (ManipulationEngine + IntentClarifierCard extension)
 **Implementiert (TV-010):** Cluster 4 MVP — Image-as-Intent (GeminiImageAnalyzer + img: prefix + image picker)
 **Implementiert (TV-011):** Cluster 7 MVP — Notification Sifter (NotificationRule + NotificationRuleRepository + WardenScreen rules); Cluster 8 MVP — Subscription Trap (SubscriptionScanner 25 apps + WardenScreen subscription section)
+**Implementiert (TV-012):** Cluster 9 Phase 2 — GameSessionService (MediaProjection foreground service, VirtualDisplay + ImageReader, 30s/1min/2min capture intervals, real-time pattern notifications, session debrief); IntentClarifierCard Watch toggle; GeminiImageAnalyzer Bitmap overload
+**Implementiert (TV-013):** Cluster 16 MVP — Desire Queue / Want Shelf (WantItem, WantShelfRepository, WantPanel mit Manipulation/Abo-Enrichment, want:/PARK routing, EmergencyOff-Clear)
+**Implementiert (TV-014):** Audit-Fix-Commit — 4 confirmed bugs behoben: GeminiImageAnalyzer null-bitmap, GameSessionService null-MediaProjection, WantPanel formatAge frozen, TaviViewModel.onParkClip() URL-Extraktion
 
 **Empfohlener MVP-Schnitt (5 Cluster):** 1 Clipboard, 2 Snippets, 5 Handoffs, 14 State Grammar, 19 Privacy/Warden. Alles andere ist Phase 2+.
 
@@ -227,7 +231,9 @@
 
 **Implemented:** `ManipulationPattern(id, name, category)`, `PatternCategory` enum (ENGAGEMENT / COMMERCE / URGENCY / ATTENTION / SOCIAL), `ManipulationEngine.detect(packageName)` — 15 Muster-Definitionen, 25+ erkannte App-Familien (TikTok, Instagram, YouTube, Twitter, Facebook, Reddit, Snapchat, BeReal, Duolingo, Supercell-Games, EA Mobile, Zynga, Genshin/HoYoverse, Candy Crush/King, Pokémon GO/Niantic, Roblox, Fortnite/Epic, PUBG, Free Fire, NetEase, Netflix, Spotify, LinkedIn, Dating Apps). Patterns: Streak, Daily Reward, Variable Reward, Loot Box, Gacha Pull, Battle Pass, Pay-to-Win, Energy Gate, Subscription Trap, FOMO Countdown, Comeback Reward, Endless Scroll, Autoplay, Push Flood, Social Pressure. `IntentClarifierCard` um `patterns: List<ManipulationPattern>` erweitert: Pattern-Chip-Row in RiskRed (0.08 alpha background, 0.85 alpha label, 0.25 alpha border). `AnimatedVisibility` condition: `suggestions.isNotEmpty() || patterns.isNotEmpty()`. `TaviUiState.manipulationPatterns` Flow; cleared on dismiss/launch.
 
-**Noch nicht implementiert (Phase 2):** Screenshot-OCR → Pattern-Analyse, Reflexionsfrage pro Pattern, Tap-to-Expand Pattern-Erklärung, Kinderhinweis, In-App-Druck erkennen (Notification-Flood-Patterns live), Pattern-Statistik über Zeit.
+**Phase 2 implementiert (TV-012):** `GameSessionService` — MediaProjection-basierte Echtzeit-Analyse während des Spielens. VirtualDisplay + ImageReader, konfigurierbare Intervalle (30s/1min/2min via Warden), GeminiImageAnalyzer.analyze(Bitmap), Live-Notifications bei erkannten Patterns, Session-Debrief beim Beenden. IntentClarifierCard zeigt Watch-Toggle wenn patterns erkannt + Cloud AI aktiv.
+
+**Noch nicht implementiert (Phase 3):** Reflexionsfrage pro Pattern, Tap-to-Expand Pattern-Erklärung, Kinderhinweis, Pattern-Statistik über Zeit.
 
 ---
 
@@ -355,22 +361,24 @@
 
 ---
 
-## Cluster 16 — Desire Queue / Want Shelf
+## Cluster 16 — Desire Queue / Want Shelf ✓ Implemented (MVP)
 
 | Feld | Inhalt |
 |---|---|
 | **Name** | Desire Queue |
 | **Purpose** | Wunsch von Druck trennen |
 | **User State** | „Ich will das gerade, aber vielleicht wegen Druck" |
-| **Input** | Produkt, App, Abo, Angebot, Link |
-| **Output** | parken, später prüfen, bewusst ausführen |
-| **Visible Surface** | Want Shelf, Purchase Preflight |
-| **Failure Behavior** | Wunsch nur parken, nicht bewerten |
-| **Roadmap** | Roadmap |
+| **Input** | URL-Clip via PARK QuickAction, `want: save <title>`, `want:` prefix |
+| **Output** | WantPanel: Parked items mit Altersanzeige, Abo-Kosten-Badge, Manipulation-Hint |
+| **Visible Surface** | WantPanel (AnimatedVisibility, zIndex 4, über PromptOrb) |
+| **Failure Behavior** | Wunsch nur parken, nicht bewerten; EmergencyOff löscht Shelf |
+| **Roadmap** | **Implemented (TV-013)** |
 | **Dependencies** | Cluster 8 (Abo-Alarm), Cluster 9 (Psychotricks) |
-| **MVP-Cut** | nicht im MVP |
+| **MVP-Cut** | enthalten |
 
-**Features:** Wunsch parken, App installieren später prüfen, Kaufdruck dämpfen, Rabatt/FOMO sichtbar machen, Angebot speichern, Opportunity Sifter, Purchase Preflight, Decision Receipt.
+**Implemented:** `WantItem(id, title, content, subscriptionCost, manipulationHints, timestamp)`, `WantShelfRepository` (DataStore via TaviPreferences; max 30 entries), `WantPanel` composable (AnimatedVisibility LazyColumn; Altersanzeige via `formatAge()`; Abo-Kosten-Badge in GlowAmber; Manipulation-Hint in RiskRed; Do it / Drop Buttons), `IntentRouter.ShowWantShelf` + `SaveWantItem(title)` via `want:` prefix, `QuickActionType.PARK` für URL-Clips → ruft `onParkClip()` auf (extrahiert packageName via `Uri.getQueryParameter("id")` und bereichert mit ManipulationEngine + SubscriptionScanner), `TaviWarden.triggerEmergencyOff()` löscht Want Shelf.
+
+**Noch nicht implementiert (Phase 2):** Purchase Preflight (Schwelle vor dem Öffnen eines geparkten Links), Decision Receipt (Protokoll getroffener Kaufentscheidungen), Opportunity Sifter, Zeitbasierte Erinnerung.
 
 ---
 

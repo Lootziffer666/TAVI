@@ -561,7 +561,7 @@ class TaviViewModel(app: Application) : AndroidViewModel(app) {
                 .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("tavi-handoff", content))
             val entry = ClipEntry(content, com.example.tavi.clipboard.ClipType.TEXT)
-            clipboardRepo.addToHistory(entry, persist = !_state.value.isSessionOnlyMode)
+            clipboardRepo.addToHistory(entry, persist = !_state.value.isSessionOnlyMode && _state.value.taviState !is TaviState.Private)
         }
         _state.update {
             it.copy(targetPage = 2 + botIdx, isThinking = false, isOrbExpanded = false, promptText = "")

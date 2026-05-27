@@ -20,9 +20,11 @@ class ClipboardRepository(
 
     val history: Flow<List<ClipEntry>> = combine(
         prefs.clipHistoryJson.map { parseHistory(it) },
-        _sessionHistory
-    ) { persisted, session ->
-        (session + persisted).distinctBy { it.content }.take(10)
+        _sessionHistory,
+        prefs.privateModeEnabled
+    ) { persisted, session, isPrivate ->
+        val base = if (isPrivate) session else (session + persisted)
+        base.distinctBy { it.content }.take(10)
     }
 
     fun read(): ClipEntry? {

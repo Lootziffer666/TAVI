@@ -25,7 +25,7 @@ object IntentClarifierEngine {
                 IntentSuggestion("Stories"),
                 IntentSuggestion("Post")
             )
-            pkg.contains("twitter") || pkg.contains(".x.") -> listOf(
+            pkg.contains("twitter") || pkg.startsWith("com.x.") -> listOf(
                 IntentSuggestion("Browse"),
                 IntentSuggestion("Post"),
                 IntentSuggestion("Notifications")
@@ -109,10 +109,39 @@ object IntentClarifierEngine {
                 IntentSuggestion("Browse"),
                 IntentSuggestion("Search")
             )
-            pkg.contains(".game") || pkg.contains(".games") || pkg.contains("gaming") ||
-            pkg == "com.google.android.play.games" -> listOf(
+            pkg.contains("facebook") || pkg.contains("meta.") || pkg.contains("fbandroid") -> listOf(
+                IntentSuggestion("Browse"),
+                IntentSuggestion("Messages"),
+                IntentSuggestion("Reels")
+            )
+            pkg.contains("snapchat") -> listOf(
+                IntentSuggestion("Stories"),
+                IntentSuggestion("Chat"),
+                IntentSuggestion("Spotlight")
+            )
+            pkg.contains("bereal") -> listOf(
+                IntentSuggestion("Post"),
+                IntentSuggestion("Browse")
+            )
+            pkg.contains("duolingo") -> listOf(
+                IntentSuggestion("Learn"),
+                IntentSuggestion("Check streak")
+            )
+            pkg.contains("supercell") || pkg.contains("clashofclans") || pkg.contains("clashroyale") ||
+            pkg.contains("brawlstars") || pkg.contains("eamobile") || pkg.contains("ea.games") ||
+            pkg.contains("zynga") || pkg.contains("genshin") || pkg.contains("mihoyo") ||
+            pkg.contains("hoyoverse") || pkg.contains("starrail") || pkg.contains("candycrush") ||
+            pkg.contains("king.") || pkg.contains("pokemongo") || pkg.contains("niantic") ||
+            pkg.contains("roblox") || pkg.contains("fortnite") || pkg.contains("epicgames") ||
+            pkg.contains("pubg") || pkg.contains("bgmi") || pkg.contains("freefire") ||
+            pkg.contains("netease") || pkg.contains(".game") || pkg.contains(".games") ||
+            pkg.contains("gaming") || pkg == "com.google.android.play.games" -> listOf(
                 IntentSuggestion("Play"),
                 IntentSuggestion("Continue")
+            )
+            pkg.contains("bumble") || pkg.contains("tinder") || pkg.contains("hinge") -> listOf(
+                IntentSuggestion("Browse"),
+                IntentSuggestion("Messages")
             )
             else -> emptyList()
         }

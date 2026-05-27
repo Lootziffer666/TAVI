@@ -28,7 +28,7 @@ object ManipulationEngine {
                     addAll(listOf(ENDLESS_SCROLL, VARIABLE_REWARD, PUSH_FLOOD))
                 pkg.contains("youtube") ->
                     addAll(listOf(AUTOPLAY, ENDLESS_SCROLL))
-                pkg.contains("twitter") || pkg.contains(".x.") ->
+                pkg.contains("twitter") || pkg.startsWith("com.x.") ->
                     addAll(listOf(ENDLESS_SCROLL, VARIABLE_REWARD, PUSH_FLOOD))
                 pkg.contains("facebook") || pkg.contains("meta.") ->
                     addAll(listOf(ENDLESS_SCROLL, VARIABLE_REWARD, PUSH_FLOOD))
